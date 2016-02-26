@@ -30,7 +30,7 @@ void VulkanGraphics::Init()
  	if (err)
  	{
 		throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));
- 	}	// Create the physcial device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
+ 	}	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
 	uint32_t gpuCount;
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
 	if (err)
