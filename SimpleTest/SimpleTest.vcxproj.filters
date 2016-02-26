@@ -9,6 +9,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Vulkan Helpers">
+      <UniqueIdentifier>{f5a3a1b7-6138-4ff2-b9c4-c02507553684}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -17,6 +20,15 @@
     <ClCompile Include="Wnd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VulkanGraphics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\include\smallvulkanwrappers\vulkantools.cpp">
+      <Filter>Vulkan Helpers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\include\smallvulkanwrappers\vulkandebug.cpp">
+      <Filter>Vulkan Helpers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ErrorReporting.h">
@@ -24,6 +36,21 @@
     </ClInclude>
     <ClInclude Include="Wnd.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanGraphics.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanHelper.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h">
+      <Filter>Vulkan Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\smallvulkanwrappers\vulkanswapchain.hpp">
+      <Filter>Vulkan Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h">
+      <Filter>Vulkan Helpers</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

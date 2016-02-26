@@ -1,8 +1,7 @@
 /*#include <vld.h>*/
 #include "ErrorReporting.h"
 #include "Wnd.h"
-
-
+#include "VulkanGraphics.h"
 
 int main(int argc, char* argv[])
 {
@@ -15,6 +14,9 @@ int main(int argc, char* argv[])
 		MessageBox(0, e.what(), "Error!", MB_OK);
 		return -1;
 	}
+
+	VulkanGraphics vulkanGraphics;
+
 
 	// Main loop
 	bool run = true;

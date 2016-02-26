@@ -31,7 +31,6 @@ bool Wnd::SetupWindow(int in_width, int in_height)
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
 	{
 		throw ProgramError(std::string("SDL_Init Error: ") + std::string(SDL_GetError()));
-		return false;
 	}
 
 	fullscreenMode = /*SDL_WINDOW_FULLSCREEN_DESKTOP*/ SDL_WINDOW_FULLSCREEN;
@@ -49,7 +48,6 @@ bool Wnd::SetupWindow(int in_width, int in_height)
 		std::string err = SDL_GetError();
 		SDL_Quit();
 		throw ProgramError(std::string("SDL_CreateWindow Error: ") + err);
-		return false;
 	}
 
 	return true;

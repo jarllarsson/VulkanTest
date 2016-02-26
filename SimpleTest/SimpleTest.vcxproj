@@ -72,13 +72,13 @@
     <OutDir>$(SolutionDir)\bin\</OutDir>
     <IntDir>$(SolutionDir)\obj\$(ProjectName)\$(ConfigurationName)</IntDir>
     <TargetName>$(ProjectName)_d</TargetName>
-    <IncludePath>$(SolutionDir)include\glm;$(SolutionDir)include\SDL2;$(SolutionDir)include\smallvulkanwrappers;$(SolutionDir)include\assimp;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)include\glm;$(SolutionDir)include\SDL2;$(SolutionDir)include\smallvulkanwrappers;$(SolutionDir)include\vulkan;$(SolutionDir)include\assimp;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)lib\SDL2;$(SolutionDir)lib\vulkan;$(SolutionDir)lib\assimp;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\bin\</OutDir>
     <IntDir>$(SolutionDir)\obj\$(ProjectName)\$(ConfigurationName)</IntDir>
-    <IncludePath>$(SolutionDir)include\glm;$(SolutionDir)include\SDL2;$(SolutionDir)include\smallvulkanwrappers;$(SolutionDir)include\assimp;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)include\glm;$(SolutionDir)include\SDL2;$(SolutionDir)include\smallvulkanwrappers;$(SolutionDir)include\vulkan;$(SolutionDir)include\assimp;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)lib\SDL2;$(SolutionDir)lib\vulkan;$(SolutionDir)lib\assimp;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -93,7 +93,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_USE_MATH_DEFINES;NOMINMAX;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;VK_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;_USE_MATH_DEFINES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>SDL2.lib;SDL2main.lib;vulkan-1.lib;assimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -120,7 +120,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_USE_MATH_DEFINES;NOMINMAX;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;VK_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;_USE_MATH_DEFINES;NOMINMAX;_MBCS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -130,11 +130,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\include\smallvulkanwrappers\vulkandebug.cpp" />
+    <ClCompile Include="..\include\smallvulkanwrappers\vulkantools.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="VulkanGraphics.cpp" />
     <ClCompile Include="Wnd.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h" />
+    <ClInclude Include="..\include\smallvulkanwrappers\vulkanswapchain.hpp" />
+    <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h" />
     <ClInclude Include="ErrorReporting.h" />
+    <ClInclude Include="VulkanGraphics.h" />
+    <ClInclude Include="VulkanHelper.h" />
     <ClInclude Include="Wnd.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
