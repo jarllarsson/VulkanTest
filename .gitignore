@@ -1,0 +1,14 @@
+*.suo
+*.opensdf
+*.sdf
+*.ilk
+*.pdb
+*.tlog
+*.lastbuildstate
+*.log
+*.obj
+*.idb
+*.exe
+.vs
+/obj
+*.opendb
