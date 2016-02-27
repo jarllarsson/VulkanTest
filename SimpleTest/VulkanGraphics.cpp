@@ -50,6 +50,12 @@ void VulkanGraphics::Init()
 
 	// Get the graphics queue
 	vkGetDeviceQueue(m_device, graphicsQueueIdx, 0, &m_queue);
+
+	// Get depth format
+	if (!SetDepthFormat(m_physicalDevice, &m_depthFormat))
+	{
+		throw ProgramError(std::string("Could set up the depth format."));
+	}
 }
 
 void VulkanGraphics::Destroy()
@@ -185,4 +191,26 @@ VkResult VulkanGraphics::CreateLogicalDevice(VkPhysicalDevice in_physicalDevice,
 	*/
 
 	return vkCreateDevice(in_physicalDevice, &deviceCreateInfo, nullptr, out_device); // no allocation callbacks for now
+}
+
+bool VulkanGraphics::SetDepthFormat(VkPhysicalDevice in_physicalDevice, VkFormat* out_format)
+{
+	// Find supported depth format
+	// Prefer 24 bits of depth and 8 bits of stencil
+	std::vector<VkFormat> depthFormats = { VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D16_UNORM };
+	bool depthFormatFound = false;
+	for (auto& format : depthFormats)
+	{
+		VkFormatProperties formatProps;
+		vkGetPhysicalDeviceFormatProperties(in_physicalDevice, format, &formatProps);
+		// Format must support depth stencil attachment for optimal tiling
+		if (formatProps.optimalTilingFeatures && VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		{
+			*out_format = format;
+			depthFormatFound = true;
+			break;
+		}
+	}
+
+	return depthFormatFound;
 }

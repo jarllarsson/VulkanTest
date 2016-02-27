@@ -13,6 +13,7 @@ private:
 	VkResult CreateInstance();
 	uint32_t GetGraphicsQueueInternalIndex(const VkPhysicalDevice in_physicalDevice) const;
 	VkResult CreateLogicalDevice(VkPhysicalDevice in_physicalDevice, uint32_t in_graphicsQueueIdx, VkDevice* out_device);
+	bool     SetDepthFormat(VkPhysicalDevice in_physicalDevice, VkFormat* out_format);
 
 	// The Vulkan instance
 	VkInstance m_vulkanInstance;
@@ -26,4 +27,6 @@ private:
 	VkDevice m_device;
 	// Handle to the device command buffer graphics queue
 	VkQueue m_queue;
+	// Depth buffer format
+	VkFormat m_depthFormat;
 };
