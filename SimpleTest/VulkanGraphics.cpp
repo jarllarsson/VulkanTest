@@ -95,7 +95,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// VK_IMAGE_LAYOUT_UNDEFINED (default, can be used if we're not in need of initializing the image data on CPU, with an existing image for example).
 	// Is this really necessary? Yes it is!
 	// We need to use a command buffer to initialize the images to their correct image layout.
-
+	// We'll actually have to do the same with images for textures.
 	// -------------------------------------------------------------------------------------------------
 
 	// When all the above is implemented we can create the render method that will be called each frame
