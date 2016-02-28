@@ -5,9 +5,11 @@
 
 int main(int argc, char* argv[])
 {
+	int width = 800, height = 600;
+
 	try 
 	{
-		Wnd::SetupWindow(800, 600);
+		Wnd::SetupWindow(width, height);
 	}
 	catch (ProgramError& e)
 	{
@@ -15,7 +17,11 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	VulkanGraphics vulkanGraphics;
+	// Init Vulkan
+	HINSTANCE hInstance;
+	HWND hWnd;
+	Wnd::GetPlatformWindowInfo(hWnd, hInstance);
+	VulkanGraphics vulkanGraphics(hWnd, hInstance, width, height);
 
 
 	// Main loop

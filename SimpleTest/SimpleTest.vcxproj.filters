@@ -29,6 +29,9 @@
     <ClCompile Include="..\include\smallvulkanwrappers\vulkandebug.cpp">
       <Filter>Vulkan Helpers</Filter>
     </ClCompile>
+    <ClCompile Include="VulkanSwapChain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ErrorReporting.h">
@@ -46,11 +49,14 @@
     <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h">
       <Filter>Vulkan Helpers</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\smallvulkanwrappers\vulkanswapchain.hpp">
-      <Filter>Vulkan Helpers</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h">
       <Filter>Vulkan Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanSwapChain.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugPrint.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

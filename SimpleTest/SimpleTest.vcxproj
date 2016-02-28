@@ -134,15 +134,17 @@
     <ClCompile Include="..\include\smallvulkanwrappers\vulkantools.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VulkanGraphics.cpp" />
+    <ClCompile Include="VulkanSwapChain.cpp" />
     <ClCompile Include="Wnd.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h" />
-    <ClInclude Include="..\include\smallvulkanwrappers\vulkanswapchain.hpp" />
     <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h" />
+    <ClInclude Include="DebugPrint.h" />
     <ClInclude Include="ErrorReporting.h" />
     <ClInclude Include="VulkanGraphics.h" />
     <ClInclude Include="VulkanHelper.h" />
+    <ClInclude Include="VulkanSwapChain.h" />
     <ClInclude Include="Wnd.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -10,9 +10,12 @@
 
 #define ENABLE_VALIDATION false
 
-VulkanGraphics::VulkanGraphics()
+VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
+	: m_swapChain(nullptr)
+	, m_width(in_width)
+	, m_height(in_height)
 {
-	Init();
+	Init(in_hWnd, in_hInstance);
 }
 
 VulkanGraphics::~VulkanGraphics()
@@ -21,7 +24,7 @@ VulkanGraphics::~VulkanGraphics()
 }
 
 // Main initialization of Vulkan stuff
-void VulkanGraphics::Init()
+void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 {
 	VkResult err;
 
@@ -56,10 +59,41 @@ void VulkanGraphics::Init()
 	{
 		throw ProgramError(std::string("Could set up the depth format."));
 	}
+
+	// Create a swap chain representation
+	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
+	                                                &m_width, &m_height,
+	                                                in_hInstance, in_hWnd);
+
+	// TODO: Add Vulkan prepare stuff here:
+	// create command pool
+	// create a setup-command buffer ????? Needed ????
+	// m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); ????? Needed ????
+	// Create command buffers for each frame image buffer in the swap chain, for rendering
+	// setup depth stencil
+	// setup the render pass
+	// create a pipeline cache
+	// setup frame buffer
+	// flush setup-command buffer ????? Needed ????
+	// other command buffers should then be created >here<
+
+	// -------------------------------------------------------------------------------------------------
+	// About the  "????? Needed ????"-tags:
+	// The vulkan examples uses an initial command buffer to do some kind of setting
+	// before actual rendering. It relates to changing of image layouts.
+	// The setup-commandbuffer is begun created before the ordinary frame commandbuffers
+	// it is written to with image layout commands for _swap chain_ and for the _depth stencil_.
+	// It's creation is then ended in flush setup-commandbuffer and it is then submitted
+	// to the allocated vulkan queue and then a wait for that queue is issued. The setup-commandbuffer
+	// is then removed and not used again.
+	// -------------------------------------------------------------------------------------------------
+
+	// When all the above is implemented we can create the render method that will be called each frame
 }
 
 void VulkanGraphics::Destroy()
 {
+	m_swapChain.reset();
 	vkDestroyInstance(m_vulkanInstance, NULL);
 }
 
@@ -72,10 +106,7 @@ VkResult VulkanGraphics::CreateInstance()
 	appInfo.pNext = NULL;                               // Mandatory
 	appInfo.pApplicationName = "vulkanTestApp";
 	appInfo.pEngineName = "vulkanTestApp";
-	// Temporary workaround for drivers not supporting SDK 1.0.3 upon launch
-	// todo : Use VK_API_VERSION 
- 	appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 2);
-
+	appInfo.apiVersion = VK_API_VERSION;
 	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
  
 #ifdef _WIN32

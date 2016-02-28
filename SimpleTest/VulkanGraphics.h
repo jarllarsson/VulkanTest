@@ -1,14 +1,16 @@
 #pragma once
 #include "vulkan/vulkan.h"
+#include <memory>
 
+#include "VulkanSwapChain.h"
 
 class VulkanGraphics
 {
 public:
-	VulkanGraphics();
+	VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height);
 	~VulkanGraphics();
 private:
-	void Init();
+	void Init(HWND in_hWnd, HINSTANCE in_hInstance);
 	void Destroy();
 	VkResult CreateInstance();
 	uint32_t GetGraphicsQueueInternalIndex(const VkPhysicalDevice in_physicalDevice) const;
@@ -29,4 +31,10 @@ private:
 	VkQueue m_queue;
 	// Depth buffer format
 	VkFormat m_depthFormat;
+
+	// Container for very basic swap chain functionality
+	std::shared_ptr<VulkanSwapChain> m_swapChain;
+
+	// Render size
+	uint32_t m_width, m_height;
 };

@@ -83,12 +83,12 @@ bool Wnd::GetPlatformWindowInfo(HWND& out_hWnd, HINSTANCE& out_hInstance)
 	if (SDL_GetWindowWMInfo(win, &sdlInfo))
 	{
 		out_hWnd = sdlInfo.info.win.window;
-
-		TCHAR* className = NULL;
-		GetClassName(sdlInfo.info.win.window, className, 256);
-		WNDCLASS wce;
-		GetClassInfo(GetModuleHandle(NULL), className, &wce);
-		out_hInstance = wce.hInstance;
+		out_hInstance = GetModuleHandle(NULL);
+// 		TCHAR* className = NULL;
+// 		GetClassName(sdlInfo.info.win.window, className, 256);
+// 		WNDCLASS wce;
+// 		GetClassInfo(GetModuleHandle(NULL), className, &wce);
+// 		out_hInstance = wce.hInstance;
 
 		return true;
 	}
