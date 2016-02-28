@@ -105,6 +105,11 @@ VkResult VulkanSwapChain::Present(VkQueue in_queue, uint32_t in_currentBufferIdx
 	return vkQueuePresentKHR(in_queue, &presentInfo);
 }
 
+int VulkanSwapChain::GetBuffersCount() const
+{
+	return static_cast<int>(m_buffers.size());
+}
+
 void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevice, VkSwapchainKHR in_oldSwapChain,
                                                uint32_t *in_width, uint32_t *in_height)
 {
@@ -199,6 +204,7 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 	// Destroy old swapchain if we have one
 	if (in_oldSwapChain != VK_NULL_HANDLE) vkDestroySwapchainKHR(m_device, in_oldSwapChain, nullptr);
 }
+
 
 void VulkanSwapChain::CreateBuffers()
 {

@@ -14,6 +14,7 @@ VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in
 	: m_swapChain(nullptr)
 	, m_width(in_width)
 	, m_height(in_height)
+	, m_graphicsQueueIdx()
 {
 	Init(in_hWnd, in_hInstance);
 }
@@ -29,36 +30,24 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	VkResult err;
 
 	// Create the Vulkan instance
-	err = CreateInstance();
- 	if (err)
- 	{
-		throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));
- 	}	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
+	err = CreateInstance(&m_vulkanInstance);
+ 	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
 	uint32_t gpuCount;
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
-	if (err)
-	{
-		throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));
-	}	// Get memory properties for current physical device
+	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));	// Get memory properties for current physical device
 	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_physicalDeviceMemProp);
 	// Get graphics queue index on the current physical device
-	const uint32_t graphicsQueueIdx = GetGraphicsQueueInternalIndex(m_physicalDevice);
+	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
 
 	// Create the logical device
-	err = CreateLogicalDevice(m_physicalDevice, graphicsQueueIdx, &m_device);
-	if (err)
-	{
-		throw ProgramError(std::string("Could not create logical device: ") + vkTools::errorString(err));
-	}
+	err = CreateLogicalDevice(m_graphicsQueueIdx, &m_device);
+	if (err) throw ProgramError(std::string("Could not create logical device: ") + vkTools::errorString(err));
 
 	// Get the graphics queue
-	vkGetDeviceQueue(m_device, graphicsQueueIdx, 0, &m_queue);
+	vkGetDeviceQueue(m_device, m_graphicsQueueIdx, 0, &m_queue);
 
 	// Get depth format
-	if (!SetDepthFormat(m_physicalDevice, &m_depthFormat))
-	{
-		throw ProgramError(std::string("Could set up the depth format."));
-	}
+	if (!GetDepthFormat(&m_depthFormat)) throw ProgramError(std::string("Could set up the depth format."));
 
 	// Create a swap chain representation
 	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
@@ -66,16 +55,30 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	                                                in_hInstance, in_hWnd);
 
 	// TODO: Add Vulkan prepare stuff here:
-	// create command pool
-	// create a setup-command buffer ????? Needed ????
-	// m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); ????? Needed ????
-	// Create command buffers for each frame image buffer in the swap chain, for rendering
-	// setup depth stencil
-	// setup the render pass
-	// create a pipeline cache
-	// setup frame buffer
-	// flush setup-command buffer ????? Needed ????
-	// other command buffers should then be created >here<
+	// Create command pool
+	err = CreateCommandPool(&m_commandPool);
+	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
+
+
+	// 2. create a setup-command buffer ????? Needed ????
+	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); ????? Needed ????
+	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering
+	CreateCommandBuffers();
+	// 5. setup depth stencil
+	// 6. setup the render pass
+	// 7. create a pipeline cache
+	// 8. setup frame buffer
+	// 9. flush setup-command buffer ????? Needed ????
+	// 10. other command buffers should then be created >here<
+
+	// Then we need to implement these, from the derived class in the example:
+	// prepareVertices();
+	// prepareUniformBuffers();
+	// setupDescriptorSetLayout();
+	// preparePipelines();
+	// setupDescriptorPool();
+	// setupDescriptorSet();
+	// buildCommandBuffers();
 
 	// -------------------------------------------------------------------------------------------------
 	// About the  "????? Needed ????"-tags:
@@ -86,6 +89,13 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// It's creation is then ended in flush setup-commandbuffer and it is then submitted
 	// to the allocated vulkan queue and then a wait for that queue is issued. The setup-commandbuffer
 	// is then removed and not used again.
+
+	// It seems like it is used to initialize the image layouts for the depth stencil image to VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+	// and the buffer images to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR. Both from an initial state of 
+	// VK_IMAGE_LAYOUT_UNDEFINED (default, can be used if we're not in need of initializing the image data on CPU, with an existing image for example).
+	// Is this really necessary? Yes it is!
+	// We need to use a command buffer to initialize the images to their correct image layout.
+
 	// -------------------------------------------------------------------------------------------------
 
 	// When all the above is implemented we can create the render method that will be called each frame
@@ -99,7 +109,7 @@ void VulkanGraphics::Destroy()
 
 
 
-VkResult VulkanGraphics::CreateInstance()
+VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 {
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; // Mandatory
@@ -139,12 +149,12 @@ VkResult VulkanGraphics::CreateInstance()
 //  		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 //  	}
 
- 	return vkCreateInstance(&instanceCreateInfo, nullptr, &m_vulkanInstance);
+ 	return vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
 }
 
 
 
-uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex(const VkPhysicalDevice in_physicalDevice) const
+uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 {
 	// Find a valid queue that will support graphics operations
 	uint32_t graphicsQueueIdx = 0;
@@ -181,7 +191,7 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex(const VkPhysicalDevice in
 	return graphicsQueueIdx;
 }
 
-VkResult VulkanGraphics::CreateLogicalDevice(VkPhysicalDevice in_physicalDevice, uint32_t in_graphicsQueueIdx, VkDevice* out_device)
+VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device)
 {
 	// Vulkan device
 
@@ -221,10 +231,10 @@ VkResult VulkanGraphics::CreateLogicalDevice(VkPhysicalDevice in_physicalDevice,
 	You can control the priority of each queue with an array of normalized floats, where 1 is highest priority.
 	*/
 
-	return vkCreateDevice(in_physicalDevice, &deviceCreateInfo, nullptr, out_device); // no allocation callbacks for now
+	return vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, out_device); // no allocation callbacks for now
 }
 
-bool VulkanGraphics::SetDepthFormat(VkPhysicalDevice in_physicalDevice, VkFormat* out_format)
+bool VulkanGraphics::GetDepthFormat(VkFormat* out_format)
 {
 	// Find supported depth format
 	// Prefer 24 bits of depth and 8 bits of stencil
@@ -233,7 +243,7 @@ bool VulkanGraphics::SetDepthFormat(VkPhysicalDevice in_physicalDevice, VkFormat
 	for (auto& format : depthFormats)
 	{
 		VkFormatProperties formatProps;
-		vkGetPhysicalDeviceFormatProperties(in_physicalDevice, format, &formatProps);
+		vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &formatProps);
 		// Format must support depth stencil attachment for optimal tiling
 		if (formatProps.optimalTilingFeatures && VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
 		{
@@ -244,4 +254,46 @@ bool VulkanGraphics::SetDepthFormat(VkPhysicalDevice in_physicalDevice, VkFormat
 	}
 
 	return depthFormatFound;
+}
+
+VkResult VulkanGraphics::CreateCommandPool(VkCommandPool* out_commandPool)
+{
+	VkCommandPoolCreateInfo cmdPoolInfo = {};
+	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+
+	// TODO: This index is only tested to VK_QUEUE_GRAPHICS_BIT,
+	// but I guess it should also be tested on whether it supports presenting?
+	// If so, should be done when surface has been created in the swap chain object,
+	// using vkGetPhysicalDeviceSurfaceSupportKHR:
+	cmdPoolInfo.queueFamilyIndex = m_graphicsQueueIdx;
+	
+	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	return vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, out_commandPool);
+}
+
+void VulkanGraphics::CreateCommandBuffers()
+{
+	// Create one command buffer per frame buffer 
+	// in the swap chain
+	// Command buffers store a reference to the 
+	// frame buffer inside their render pass info
+	// so for static usage without having to rebuild 
+	// them each frame, we use one per frame buffer
+
+	uint32_t count = static_cast<uint32_t>(m_swapChain->GetBuffersCount());
+
+	m_drawCommandBuffers.resize(count);
+
+	VkCommandBufferAllocateInfo createInfo = vkTools::initializers::commandBufferAllocateInfo(m_commandPool, 
+		                                                                                      VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		                                                                                      count);
+
+	VkResult err;
+	err = vkAllocateCommandBuffers(m_device, &createInfo, m_drawCommandBuffers.data());
+	if (err) throw ProgramError(std::string("Could not allocate command buffers from pool: ") + vkTools::errorString(err));
+
+	// Create a post-present command buffer, it is used to restore the image layout after presenting
+	createInfo.commandBufferCount = 1; // re-use same creation struct, but reset number of buffers to 1
+	err = vkAllocateCommandBuffers(m_device, &createInfo, &m_postPresentCommandBuffer);
+	if (err) throw ProgramError(std::string("Could not allocate post-present command buffer from pool: ") + vkTools::errorString(err));
 }

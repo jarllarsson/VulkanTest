@@ -31,8 +31,9 @@ public:
 	// Present current image to specified queue
 	VkResult Present(VkQueue in_queue, uint32_t in_currentBufferIdx);
 
-private:
+	int      GetBuffersCount() const;
 
+private:
 	void CreateBuffers();
 
 	VkInstance m_vulkanInstance;
@@ -41,6 +42,9 @@ private:
 	VkSurfaceKHR    m_surface;
 	VkSwapchainKHR  m_swapChain;
 	std::vector<SwapChainBuffer> m_buffers; // The buffers we render to and flip between
+
+	// Index of the queue capable of graphics and presenting
+	uint32_t m_queueNodeIndex = UINT32_MAX;
 
 	VkFormat        m_colorFormat;
 	VkColorSpaceKHR m_colorSpace;
