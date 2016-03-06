@@ -144,6 +144,7 @@
     <ClInclude Include="VulkanCommandBufferFactory.h" />
     <ClInclude Include="DebugPrint.h" />
     <ClInclude Include="ErrorReporting.h" />
+    <ClInclude Include="VulkanDepthStencil.h" />
     <ClInclude Include="VulkanGraphics.h" />
     <ClInclude Include="VulkanHelper.h" />
     <ClInclude Include="VulkanSwapChain.h" />

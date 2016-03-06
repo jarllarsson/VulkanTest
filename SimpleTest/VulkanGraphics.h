@@ -1,5 +1,6 @@
 #pragma once
 #include "vulkan/vulkan.h"
+#include "VulkanDepthStencil.h"
 #include <memory>
 
 class VulkanSwapChain;
@@ -36,13 +37,15 @@ private:
 	VkQueue m_queue;
 	// Depth buffer format
 	VkFormat m_depthFormat;
+	// Depth stencil object
+	VulkanDepthStencil m_depthStencil;
 
 	// Command buffer pool, command buffers are allocated from this
 	VkCommandPool m_commandPool;
 	// Command buffers for rendering
 	std::vector<VkCommandBuffer> m_drawCommandBuffers;
-	// Command buffer for initializing the depth stencil and swap chain images to the right format
-	VkCommandBuffer m_initImageFormatsCommandBuffer = VK_NULL_HANDLE;
+	// Command buffer for initializing the depth stencil and swap chain images to the right format on the gpu
+	VkCommandBuffer m_swapchainDepthStencilInitializationCommandBuffer = VK_NULL_HANDLE;
 	// Command buffer for resetting image formats after presenting
 	VkCommandBuffer m_postPresentCommandBuffer = VK_NULL_HANDLE;
 

@@ -72,10 +72,14 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering
 	CreateCommandBuffers();
 	// 5. setup depth stencil
+	m_commandBufferFactory->ConstructSwapchainDepthStencilInitializationCommandBuffer(
+		m_swapchainDepthStencilInitializationCommandBuffer,
+		m_swapChain,
+		m_depthStencil);
 	// 6. setup the render pass
 	// 7. create a pipeline cache
 	// 8. setup frame buffer
-	// 9. flush setup-command buffer ????? Needed ????
+	// 9. flush setup-command buffer
 	// 10. other command buffers should then be created >here<
 
 	// Then we need to implement these, from the derived class in the example:

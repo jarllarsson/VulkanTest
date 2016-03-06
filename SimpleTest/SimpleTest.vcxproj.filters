@@ -61,6 +61,11 @@
     <ClInclude Include="DebugPrint.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="VulkanCommandBufferFactory.h" />
+    <ClInclude Include="VulkanCommandBufferFactory.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanDepthStencil.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

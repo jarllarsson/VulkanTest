@@ -22,8 +22,8 @@ public:
 	void SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevice, VkSwapchainKHR in_oldSwapChain,
 	                              uint32_t* in_width, uint32_t* in_height);
 
-	// Sets the image layouts based on the specified command buffer
-	void SetImageLayoutsToSetupCommandBuffer(VkCommandBuffer in_commandBuffer);
+	// Get buffer
+	std::vector<SwapChainBuffer>& GetBuffers() { return m_buffers; }
 
 	// Acquire the next image in the swapchain for rendering
 	VkResult NextImage(VkSemaphore in_semPresentIsComplete, uint32_t* inout_currentBufferIdx);
