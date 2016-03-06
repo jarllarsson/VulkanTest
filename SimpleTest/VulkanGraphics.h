@@ -2,7 +2,8 @@
 #include "vulkan/vulkan.h"
 #include <memory>
 
-#include "VulkanSwapChain.h"
+class VulkanSwapChain;
+class VulkanCommandBufferFactory;
 
 class VulkanGraphics
 {
@@ -40,12 +41,17 @@ private:
 	VkCommandPool m_commandPool;
 	// Command buffers for rendering
 	std::vector<VkCommandBuffer> m_drawCommandBuffers;
-	// Command buffer for resetting after presenting
+	// Command buffer for initializing the depth stencil and swap chain images to the right format
+	VkCommandBuffer m_initImageFormatsCommandBuffer = VK_NULL_HANDLE;
+	// Command buffer for resetting image formats after presenting
 	VkCommandBuffer m_postPresentCommandBuffer = VK_NULL_HANDLE;
 
 
 	// Container for very basic swap chain functionality
 	std::shared_ptr<VulkanSwapChain> m_swapChain;
+
+	// Factories
+	std::shared_ptr<VulkanCommandBufferFactory> m_commandBufferFactory;
 
 	// Render size
 	uint32_t m_width, m_height;

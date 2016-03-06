@@ -7,11 +7,15 @@
 #include "vulkantools.h"
 #include "vulkandebug.h"
 
+#include "VulkanSwapChain.h"
+#include "VulkanCommandBufferFactory.h"
+
 
 #define ENABLE_VALIDATION false
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
 	: m_swapChain(nullptr)
+	, m_commandBufferFactory(nullptr)
 	, m_width(in_width)
 	, m_height(in_height)
 	, m_graphicsQueueIdx()
@@ -53,6 +57,9 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
 	                                                &m_width, &m_height,
 	                                                in_hInstance, in_hWnd);
+	// Init factories
+	m_commandBufferFactory = std::make_shared<VulkanCommandBufferFactory>(m_device);
+
 
 	// TODO: Add Vulkan prepare stuff here:
 	// Create command pool
@@ -283,17 +290,10 @@ void VulkanGraphics::CreateCommandBuffers()
 	uint32_t count = static_cast<uint32_t>(m_swapChain->GetBuffersCount());
 
 	m_drawCommandBuffers.resize(count);
-
-	VkCommandBufferAllocateInfo createInfo = vkTools::initializers::commandBufferAllocateInfo(m_commandPool, 
-		                                                                                      VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		                                                                                      count);
-
-	VkResult err;
-	err = vkAllocateCommandBuffers(m_device, &createInfo, m_drawCommandBuffers.data());
+	VkResult err = m_commandBufferFactory->CreateCommandBuffers(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_drawCommandBuffers);
 	if (err) throw ProgramError(std::string("Could not allocate command buffers from pool: ") + vkTools::errorString(err));
 
 	// Create a post-present command buffer, it is used to restore the image layout after presenting
-	createInfo.commandBufferCount = 1; // re-use same creation struct, but reset number of buffers to 1
-	err = vkAllocateCommandBuffers(m_device, &createInfo, &m_postPresentCommandBuffer);
+	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_postPresentCommandBuffer);
 	if (err) throw ProgramError(std::string("Could not allocate post-present command buffer from pool: ") + vkTools::errorString(err));
 }

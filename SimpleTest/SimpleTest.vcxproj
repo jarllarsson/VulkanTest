@@ -133,6 +133,7 @@
     <ClCompile Include="..\include\smallvulkanwrappers\vulkandebug.cpp" />
     <ClCompile Include="..\include\smallvulkanwrappers\vulkantools.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="VulkanCommandBufferFactory.cpp" />
     <ClCompile Include="VulkanGraphics.cpp" />
     <ClCompile Include="VulkanSwapChain.cpp" />
     <ClCompile Include="Wnd.cpp" />
@@ -140,6 +141,7 @@
   <ItemGroup>
     <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h" />
     <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h" />
+    <ClInclude Include="VulkanCommandBufferFactory.h" />
     <ClInclude Include="DebugPrint.h" />
     <ClInclude Include="ErrorReporting.h" />
     <ClInclude Include="VulkanGraphics.h" />

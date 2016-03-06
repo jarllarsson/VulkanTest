@@ -32,6 +32,9 @@
     <ClCompile Include="VulkanSwapChain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VulkanCommandBufferFactory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ErrorReporting.h">
@@ -58,5 +61,6 @@
     <ClInclude Include="DebugPrint.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="VulkanCommandBufferFactory.h" />
   </ItemGroup>
 </Project>
