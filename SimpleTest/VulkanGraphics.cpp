@@ -9,14 +9,13 @@
 
 #include "VulkanSwapChain.h"
 #include "VulkanCommandBufferFactory.h"
+#include "VulkanMemoryHelper.h"
 
 
 #define ENABLE_VALIDATION false
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
-	: m_swapChain(nullptr)
-	, m_commandBufferFactory(nullptr)
-	, m_width(in_width)
+	: m_width(in_width)
 	, m_height(in_height)
 	, m_graphicsQueueIdx()
 {
@@ -43,8 +42,8 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
 	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));
 
-	// Get memory properties for current physical device
-	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_physicalDeviceMemProp);
+	// Initialize memory helper class
+	m_memory = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
 
 	// Get graphics queue index on the current physical device
 	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
@@ -65,19 +64,30 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	                                                in_hInstance, in_hWnd);
 	// Init factories
 	m_commandBufferFactory = std::make_shared<VulkanCommandBufferFactory>(m_device);
-
+	m_depthStencilFactory = std::make_shared<VulkanDepthStencilFactory>(m_device);
 
 	// TODO: Add Vulkan prepare stuff here:
-	// Create command pool
+	// Create command pool __DONE__
 	err = CreateCommandPool(&m_commandPool);
 	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
 
 
-	// 2. create a setup-command buffer ????? Needed ????
-	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); ????? Needed ????
-	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering
+	// 2. create a setup-command buffer __DONE__ (see 9)
+	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); __DONE__ (see 9)
+	
+	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering __DONE__
 	CreateCommandBuffers();
-	// 5. setup depth stencil
+
+	// 5. setup depth stencil __DONE__
+	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_memory, m_depthStencil);
+
+
+	// TODO:
+	// 6. setup the render pass
+	// 7. create a pipeline cache
+	// 8. setup frame buffer
+	// 9. flush setup-command buffer __DONE__ (see below)
+
 
 	// Command buffer for initializing the depth stencil and swap chain 
 	// images to the right format on the gpu
@@ -86,16 +96,12 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		swapchainDepthStencilSetupCommandBuffer,
 		m_swapChain,
 		m_depthStencil);
-
-	// 6. setup the render pass
-	// 7. create a pipeline cache
-	// 8. setup frame buffer
-	// 9. flush setup-command buffer
-
 	// Submit the setup command buffer to the queue, and then free it (we only need it once, here)
 	SubmitCommandBufferAndAppendWaitToQueue(swapchainDepthStencilSetupCommandBuffer);
 	vkFreeCommandBuffers(m_device, m_commandPool, 1, &swapchainDepthStencilSetupCommandBuffer);
 	swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
+
+
 
 	// 10. other command buffers should then be created >here<
 
@@ -132,7 +138,16 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 void VulkanGraphics::Destroy()
 {
 	m_swapChain.reset();
-	vkDestroyInstance(m_vulkanInstance, NULL);
+
+	DestroyCommandBuffers();
+
+	vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
+	vkDestroyImage(m_device, m_depthStencil.m_image, nullptr);
+	vkFreeMemory(m_device, m_depthStencil.m_gpuMem, nullptr);
+
+	vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+	vkDestroyDevice(m_device, nullptr);
+	vkDestroyInstance(m_vulkanInstance, nullptr);
 }
 
 

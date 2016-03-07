@@ -134,7 +134,9 @@
     <ClCompile Include="..\include\smallvulkanwrappers\vulkantools.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VulkanCommandBufferFactory.cpp" />
+    <ClCompile Include="VulkanDepthStencil.cpp" />
     <ClCompile Include="VulkanGraphics.cpp" />
+    <ClCompile Include="VulkanMemoryHelper.cpp" />
     <ClCompile Include="VulkanSwapChain.cpp" />
     <ClCompile Include="Wnd.cpp" />
   </ItemGroup>
@@ -147,6 +149,7 @@
     <ClInclude Include="VulkanDepthStencil.h" />
     <ClInclude Include="VulkanGraphics.h" />
     <ClInclude Include="VulkanHelper.h" />
+    <ClInclude Include="VulkanMemoryHelper.h" />
     <ClInclude Include="VulkanSwapChain.h" />
     <ClInclude Include="Wnd.h" />
   </ItemGroup>

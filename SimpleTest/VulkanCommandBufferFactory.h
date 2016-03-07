@@ -30,4 +30,4 @@ private:
 
 	// Image layout helper
 	void AddImageLayoutChangeToCommandBuffer(VkCommandBuffer inout_cmdbuffer, VkImage in_image, VkImageAspectFlags in_aspectMask, VkImageLayout in_oldImageLayout, VkImageLayout in_newImageLayout);
-}
+};

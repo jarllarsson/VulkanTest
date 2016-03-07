@@ -72,23 +72,6 @@ VulkanSwapChain::~VulkanSwapChain()
 	vkDestroySurfaceKHR(m_vulkanInstance, m_surface, nullptr);
 }
 
-// TODO: Call this after we have our setup command buffer
-// ??????? NEEDED ???????
-void VulkanSwapChain::SetImageLayoutsToSetupCommandBuffer(VkCommandBuffer in_commandBuffer)
-{
-	// Add barriers to the command buffer template, for each image in the buffers array
-	// TODO: Read up on this, see vkTools::setImageLayout
-	for (uint32_t i = 0; i < m_buffers.size(); i++)
-	{
-		// TODO: Implement own variant?
-		vkTools::setImageLayout(
-			in_commandBuffer,
-			m_buffers[i].m_image,
-			VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-	}
-}
-
 VkResult VulkanSwapChain::NextImage(VkSemaphore in_semPresentIsComplete, uint32_t* inout_currentBufferIdx)
 {
 	return vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, in_semPresentIsComplete, (VkFence)nullptr, inout_currentBufferIdx);

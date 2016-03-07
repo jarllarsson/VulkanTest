@@ -1,10 +1,13 @@
 #pragma once
+#include <memory>
+#include <vector>
 #include "vulkan/vulkan.h"
 #include "VulkanDepthStencil.h"
-#include <memory>
+
 
 class VulkanSwapChain;
 class VulkanCommandBufferFactory;
+class VulkanMemoryHelper;
 
 class VulkanGraphics
 {
@@ -28,8 +31,8 @@ private:
 
 	// Physical device object (ie. the real gpu)
 	VkPhysicalDevice m_physicalDevice;
-	// Available memory properties for the physical device
-	VkPhysicalDeviceMemoryProperties m_physicalDeviceMemProp;
+	// Vulkan memory handler
+	std::shared_ptr<VulkanMemoryHelper> m_memory;
 	// Logical device object (the app's view of the gpu)
 	VkDevice m_device;
 
@@ -55,6 +58,7 @@ private:
 
 	// Factories
 	std::shared_ptr<VulkanCommandBufferFactory> m_commandBufferFactory;
+	std::shared_ptr<VulkanDepthStencilFactory>  m_depthStencilFactory;
 
 	// Render size
 	uint32_t m_width, m_height;
