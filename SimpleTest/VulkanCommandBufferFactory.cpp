@@ -34,7 +34,7 @@ void VulkanCommandBufferFactory::ConstructSwapchainDepthStencilInitializationCom
 	if (err) throw ProgramError(std::string("Could not begin the SwapchainDepthStencilInitialization Command buffer"));
 
 	// Swap chain set up on GPU
-	std::vector<VulkanSwapChain::SwapChainBuffer> buffers = in_swapChain.GetBuffers();
+	std::vector<VulkanSwapChain::SwapChainBuffer>& buffers = in_swapChain.GetBuffers();
 	for (auto buf : buffers)
 	{
 		AddImageLayoutChangeToCommandBuffer(inout_buffer, buf.m_image, VK_IMAGE_ASPECT_COLOR_BIT,

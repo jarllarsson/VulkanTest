@@ -35,11 +35,17 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Create the Vulkan instance
 	err = CreateInstance(&m_vulkanInstance);
- 	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
+ 	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));
+
+	// Create the physical device object
+	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
 	uint32_t gpuCount;
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
-	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));	// Get memory properties for current physical device
-	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_physicalDeviceMemProp);
+	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));
+
+	// Get memory properties for current physical device
+	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_physicalDeviceMemProp);
+
 	// Get graphics queue index on the current physical device
 	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
 
@@ -72,14 +78,25 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering
 	CreateCommandBuffers();
 	// 5. setup depth stencil
+
+	// Command buffer for initializing the depth stencil and swap chain 
+	// images to the right format on the gpu
+	VkCommandBuffer swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
 	m_commandBufferFactory->ConstructSwapchainDepthStencilInitializationCommandBuffer(
-		m_swapchainDepthStencilInitializationCommandBuffer,
+		swapchainDepthStencilSetupCommandBuffer,
 		m_swapChain,
 		m_depthStencil);
+
 	// 6. setup the render pass
 	// 7. create a pipeline cache
 	// 8. setup frame buffer
 	// 9. flush setup-command buffer
+
+	// Submit the setup command buffer to the queue, and then free it (we only need it once, here)
+	SubmitCommandBufferAndAppendWaitToQueue(swapchainDepthStencilSetupCommandBuffer);
+	vkFreeCommandBuffers(m_device, m_commandPool, 1, &swapchainDepthStencilSetupCommandBuffer);
+	swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
+
 	// 10. other command buffers should then be created >here<
 
 	// Then we need to implement these, from the derived class in the example:
@@ -119,6 +136,12 @@ void VulkanGraphics::Destroy()
 }
 
 
+
+void VulkanGraphics::DestroyCommandBuffers()
+{
+	vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_drawCommandBuffers.size()), m_drawCommandBuffers.data());
+	vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_postPresentCommandBuffer);
+}
 
 VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 {
@@ -300,4 +323,23 @@ void VulkanGraphics::CreateCommandBuffers()
 	// Create a post-present command buffer, it is used to restore the image layout after presenting
 	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_postPresentCommandBuffer);
 	if (err) throw ProgramError(std::string("Could not allocate post-present command buffer from pool: ") + vkTools::errorString(err));
+}
+
+void VulkanGraphics::SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer)
+{
+	// Submit a command buffer to the main queue, and also append a wait
+	VkResult err;
+
+	if (in_commandBuffer == VK_NULL_HANDLE) return;
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &in_commandBuffer;
+
+	err = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
+	if (err) throw  ProgramError(std::string("Could not submit command buffer: ") + vkTools::errorString(err));
+
+	err = vkQueueWaitIdle(m_queue);
+	if (err) throw  ProgramError(std::string("Could not submit wait to queue: ") + vkTools::errorString(err));
 }

@@ -14,12 +14,14 @@ public:
 private:
 	void Init(HWND in_hWnd, HINSTANCE in_hInstance);
 	void Destroy();
+	void DestroyCommandBuffers();
 	VkResult CreateInstance(VkInstance* out_instance);
 	uint32_t GetGraphicsQueueInternalIndex() const;
 	VkResult CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device);
 	bool     GetDepthFormat(VkFormat* out_format);
 	VkResult CreateCommandPool(VkCommandPool* out_commandPool);
 	void     CreateCommandBuffers();
+	void     SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer);
 
 	// The Vulkan instance
 	VkInstance m_vulkanInstance;
@@ -44,8 +46,6 @@ private:
 	VkCommandPool m_commandPool;
 	// Command buffers for rendering
 	std::vector<VkCommandBuffer> m_drawCommandBuffers;
-	// Command buffer for initializing the depth stencil and swap chain images to the right format on the gpu
-	VkCommandBuffer m_swapchainDepthStencilInitializationCommandBuffer = VK_NULL_HANDLE;
 	// Command buffer for resetting image formats after presenting
 	VkCommandBuffer m_postPresentCommandBuffer = VK_NULL_HANDLE;
 
