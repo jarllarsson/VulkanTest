@@ -86,9 +86,13 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		m_depthStencil);
 
 	// Create the render pass
-	m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
+	err = m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
+	if (err) throw ProgramError(std::string("Could not create render pass: ") + vkTools::errorString(err));
 
-	// 7. create a pipeline cache
+	// Create a pipeline cache
+	err = CreatePipelineCache();
+	if (err) throw ProgramError(std::string("Could not create pipeline cache: ") + vkTools::errorString(err));
+
 	// 8. setup frame buffer
 
 
@@ -353,4 +357,11 @@ void VulkanGraphics::SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_
 
 	err = vkQueueWaitIdle(m_queue);
 	if (err) throw  ProgramError(std::string("Could not submit wait to queue: ") + vkTools::errorString(err));
+}
+
+void VulkanGraphics::CreatePipelineCache()
+{
+	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+	return vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache);
 }

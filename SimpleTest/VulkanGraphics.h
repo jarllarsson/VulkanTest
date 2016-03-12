@@ -26,7 +26,7 @@ private:
 	VkResult CreateCommandPool(VkCommandPool* out_commandPool);
 	void     CreateCommandBuffers();
 	void     SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer);
-
+	VkResult CreatePipelineCache();
 	// The Vulkan instance
 	VkInstance m_vulkanInstance;
 
@@ -48,6 +48,8 @@ private:
 	VulkanDepthStencil m_depthStencil;
 	// Render pass for frame buffer writing
 	VkRenderPass m_renderPass;
+	// Pipeline cache
+	VkPipelineCache m_pipelineCache;
 
 	// Command buffer pool, command buffers are allocated from this
 	VkCommandPool m_commandPool;
