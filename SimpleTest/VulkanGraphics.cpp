@@ -66,18 +66,15 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	m_depthStencilFactory = std::make_shared<VulkanDepthStencilFactory>(m_device);
 
 	// TODO: Add Vulkan prepare stuff here:
-	// Create command pool __DONE__
+	// Create command pool
 	err = CreateCommandPool(&m_commandPool);
 	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
 
 
-	// 2. create a setup-command buffer __DONE__ (see 9)
-	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); __DONE__ (see 9)
-	
-	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering __DONE__
+	// Create command buffers for each frame image buffer in the swap chain, for rendering __DONE__
 	CreateCommandBuffers();
 
-	// 5. setup depth stencil __DONE__
+	// Setup depth stencil
 	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_memory, m_depthStencil);
 	
 	// Command buffer for initializing the depth stencil and swap chain 
@@ -88,12 +85,13 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		m_swapChain,
 		m_depthStencil);
 
-
-	// 6. setup the render pass
+	// Create the render pass
 	m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
+
 	// 7. create a pipeline cache
 	// 8. setup frame buffer
-	// 9. flush setup-command buffer
+
+
 	// Submit the setup command buffer to the queue, and then free it (we only need it once, here)
 	SubmitCommandBufferAndAppendWaitToQueue(swapchainDepthStencilSetupCommandBuffer);
 	vkFreeCommandBuffers(m_device, m_commandPool, 1, &swapchainDepthStencilSetupCommandBuffer);
