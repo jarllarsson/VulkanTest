@@ -5,6 +5,7 @@
 
 class VulkanSwapChain;
 class VulkanCommandBufferFactory;
+class VulkanRenderPassFactory;
 
 class VulkanGraphics
 {
@@ -35,10 +36,13 @@ private:
 	uint32_t m_graphicsQueueIdx;
 	// Handle to the device command buffer graphics queue
 	VkQueue m_queue;
-	// Depth buffer format
+	// Color and depth buffer format
+	VkFormat m_colorformat;
 	VkFormat m_depthFormat;
 	// Depth stencil object
 	VulkanDepthStencil m_depthStencil;
+	// Render pass for frame buffer writing
+	VkRenderPass m_renderPass;
 
 	// Command buffer pool, command buffers are allocated from this
 	VkCommandPool m_commandPool;
@@ -54,7 +58,9 @@ private:
 	std::shared_ptr<VulkanSwapChain> m_swapChain;
 
 	// Factories
-	std::shared_ptr<VulkanCommandBufferFactory> m_commandBufferFactory;
+	std::unique_ptr<VulkanCommandBufferFactory> m_commandBufferFactory;
+	std::unique_ptr<VulkanRenderPassFactory> m_renderPassFactory;
+
 
 	// Render size
 	uint32_t m_width, m_height;

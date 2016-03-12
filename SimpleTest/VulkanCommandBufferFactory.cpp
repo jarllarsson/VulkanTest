@@ -1,5 +1,6 @@
 #include "VulkanCommandBufferFactory.h"
 #include "ErrorReporting.h"
+#include "VulkanDepthStencil.h"
 #include "VulkanSwapChain.h"
 
 VulkanCommandBufferFactory::VulkanCommandBufferFactory(VkDevice in_device)

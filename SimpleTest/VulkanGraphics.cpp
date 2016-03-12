@@ -9,6 +9,7 @@
 
 #include "VulkanSwapChain.h"
 #include "VulkanCommandBufferFactory.h"
+#include "VulkanRenderPassFactory.h"
 
 
 #define ENABLE_VALIDATION false
@@ -50,7 +51,9 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Get the graphics queue
 	vkGetDeviceQueue(m_device, m_graphicsQueueIdx, 0, &m_queue);
 
-	// Get depth format
+	// Set color format
+	m_colorformat = VK_FORMAT_B8G8R8A8_UNORM;
+	// Get and set depth format
 	if (!GetDepthFormat(&m_depthFormat)) throw ProgramError(std::string("Could set up the depth format."));
 
 	// Create a swap chain representation
@@ -58,7 +61,8 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	                                                &m_width, &m_height,
 	                                                in_hInstance, in_hWnd);
 	// Init factories
-	m_commandBufferFactory = std::make_shared<VulkanCommandBufferFactory>(m_device);
+	m_commandBufferFactory = std::make_unique<VulkanCommandBufferFactory>(m_device);
+	m_renderPassFactory = std::make_unique<VulkanRenderPassFactory>(m_device);
 
 
 	// TODO: Add Vulkan prepare stuff here:
@@ -67,8 +71,8 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
 
 
-	// 2. create a setup-command buffer ????? Needed ????
-	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); ????? Needed ????
+	// 2. create a setup-command buffer (DONE)
+	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); (DONE)
 	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering
 	CreateCommandBuffers();
 	// 5. setup depth stencil
@@ -77,6 +81,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		m_swapChain,
 		m_depthStencil);
 	// 6. setup the render pass
+	m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
 	// 7. create a pipeline cache
 	// 8. setup frame buffer
 	// 9. flush setup-command buffer
@@ -92,7 +97,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// buildCommandBuffers();
 
 	// -------------------------------------------------------------------------------------------------
-	// About the  "????? Needed ????"-tags:
+	// About ConstructSwapchainDepthStencilInitializationCommandBuffer:
 	// The vulkan examples uses an initial command buffer to do some kind of setting
 	// before actual rendering. It relates to changing of image layouts.
 	// The setup-commandbuffer is begun created before the ordinary frame commandbuffers
