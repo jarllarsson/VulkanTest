@@ -9,15 +9,14 @@
 
 #include "VulkanSwapChain.h"
 #include "VulkanCommandBufferFactory.h"
+#include "VulkanMemoryHelper.h"
 #include "VulkanRenderPassFactory.h"
 
 
 #define ENABLE_VALIDATION false
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
-	: m_swapChain(nullptr)
-	, m_commandBufferFactory(nullptr)
-	, m_width(in_width)
+	: m_width(in_width)
 	, m_height(in_height)
 	, m_graphicsQueueIdx()
 {
@@ -39,8 +38,9 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
  	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
 	uint32_t gpuCount;
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
-	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));	// Get memory properties for current physical device
-	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_physicalDeviceMemProp);
+	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));	// Initialize memory helper class
+	m_memory = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
+
 	// Get graphics queue index on the current physical device
 	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
 
@@ -63,28 +63,44 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Init factories
 	m_commandBufferFactory = std::make_unique<VulkanCommandBufferFactory>(m_device);
 	m_renderPassFactory = std::make_unique<VulkanRenderPassFactory>(m_device);
-
+	m_depthStencilFactory = std::make_shared<VulkanDepthStencilFactory>(m_device);
 
 	// TODO: Add Vulkan prepare stuff here:
-	// Create command pool
+	// Create command pool __DONE__
 	err = CreateCommandPool(&m_commandPool);
 	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
 
 
-	// 2. create a setup-command buffer (DONE)
-	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); (DONE)
-	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering
+	// 2. create a setup-command buffer __DONE__ (see 9)
+	// 3. m_swapChain->SetImageLayoutsToSetupCommandBuffer(commandBuffer); __DONE__ (see 9)
+	
+	// 4. Create command buffers for each frame image buffer in the swap chain, for rendering __DONE__
 	CreateCommandBuffers();
-	// 5. setup depth stencil
+
+	// 5. setup depth stencil __DONE__
+	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_memory, m_depthStencil);
+	
+	// Command buffer for initializing the depth stencil and swap chain 
+	// images to the right format on the gpu
+	VkCommandBuffer swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
 	m_commandBufferFactory->ConstructSwapchainDepthStencilInitializationCommandBuffer(
-		m_swapchainDepthStencilInitializationCommandBuffer,
+		swapchainDepthStencilSetupCommandBuffer,
 		m_swapChain,
 		m_depthStencil);
+
+
 	// 6. setup the render pass
 	m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
 	// 7. create a pipeline cache
 	// 8. setup frame buffer
 	// 9. flush setup-command buffer
+	// Submit the setup command buffer to the queue, and then free it (we only need it once, here)
+	SubmitCommandBufferAndAppendWaitToQueue(swapchainDepthStencilSetupCommandBuffer);
+	vkFreeCommandBuffers(m_device, m_commandPool, 1, &swapchainDepthStencilSetupCommandBuffer);
+	swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
+
+
+
 	// 10. other command buffers should then be created >here<
 
 	// Then we need to implement these, from the derived class in the example:
@@ -120,10 +136,25 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 void VulkanGraphics::Destroy()
 {
 	m_swapChain.reset();
-	vkDestroyInstance(m_vulkanInstance, NULL);
+
+	DestroyCommandBuffers();
+
+	vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
+	vkDestroyImage(m_device, m_depthStencil.m_image, nullptr);
+	vkFreeMemory(m_device, m_depthStencil.m_gpuMem, nullptr);
+
+	vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+	vkDestroyDevice(m_device, nullptr);
+	vkDestroyInstance(m_vulkanInstance, nullptr);
 }
 
 
+
+void VulkanGraphics::DestroyCommandBuffers()
+{
+	vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_drawCommandBuffers.size()), m_drawCommandBuffers.data());
+	vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_postPresentCommandBuffer);
+}
 
 VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 {
@@ -305,4 +336,23 @@ void VulkanGraphics::CreateCommandBuffers()
 	// Create a post-present command buffer, it is used to restore the image layout after presenting
 	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_postPresentCommandBuffer);
 	if (err) throw ProgramError(std::string("Could not allocate post-present command buffer from pool: ") + vkTools::errorString(err));
+}
+
+void VulkanGraphics::SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer)
+{
+	// Submit a command buffer to the main queue, and also append a wait
+	VkResult err;
+
+	if (in_commandBuffer == VK_NULL_HANDLE) return;
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &in_commandBuffer;
+
+	err = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
+	if (err) throw  ProgramError(std::string("Could not submit command buffer: ") + vkTools::errorString(err));
+
+	err = vkQueueWaitIdle(m_queue);
+	if (err) throw  ProgramError(std::string("Could not submit wait to queue: ") + vkTools::errorString(err));
 }
