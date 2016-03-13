@@ -16,9 +16,10 @@
 #define ENABLE_VALIDATION false
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
-	: m_width(in_width)
+	: m_graphicsQueueIdx()
+	, m_postPresentCommandBuffer(VK_NULL_HANDLE)
+	, m_width(in_width)
 	, m_height(in_height)
-	, m_graphicsQueueIdx()
 {
 	Init(in_hWnd, in_hInstance);
 }
@@ -139,13 +140,16 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 void VulkanGraphics::Destroy()
 {
+	OutputDebugString("Vulkan: Removing swap chain\n");
 	m_swapChain.reset();
 
 	//TODO vkDestroyDescriptorPool(m_device, descriptorPool, nullptr);
-
+	OutputDebugString("Vulkan: Removing command buffers\n");
 	DestroyCommandBuffers();
+	OutputDebugString("Vulkan: Removing render pass\n");
 	vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 
+	OutputDebugString("Vulkan: Removing frame buffers\n");
 	for (uint32_t i = 0; i < static_cast<uint32_t>(m_frameBuffers.size()); i++)
 	{
 		vkDestroyFramebuffer(m_device, m_frameBuffers[i], nullptr);
@@ -156,39 +160,48 @@ void VulkanGraphics::Destroy()
 	//{
 	//	vkDestroyShaderModule(device, shaderModule, nullptr);
 	//}
-
+	OutputDebugString("Vulkan: Removing depth stencil view\n");
 	vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
+	OutputDebugString("Vulkan: Removing depth stencil image\n");
 	vkDestroyImage(m_device, m_depthStencil.m_image, nullptr);
+	OutputDebugString("Vulkan: Freeing memory of depth stencil on the GPU\n");
 	vkFreeMemory(m_device, m_depthStencil.m_gpuMem, nullptr);
 
+	OutputDebugString("Vulkan: Removing pipeline cache\n");
 	vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
 
+	OutputDebugString("Vulkan: Removing command pool\n");
 	vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+	OutputDebugString("Vulkan: Removing device object\n");
 	vkDestroyDevice(m_device, nullptr);
+	OutputDebugString("Vulkan: Removing instance object\n");
 	vkDestroyInstance(m_vulkanInstance, nullptr);
 }
 
 void VulkanGraphics::DestroyCommandBuffers()
 {
-	vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_drawCommandBuffers.size()), m_drawCommandBuffers.data());
+	OutputDebugString("Vulkan: Removing draw command buffers\n");
+	if (m_drawCommandBuffers[0]!=VK_NULL_HANDLE) // TODO, remove this when we have the draw buffer initialization in place
+		vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_drawCommandBuffers.size()), m_drawCommandBuffers.data());
+	else
+		OutputDebugString("Vulkan: Warning, can't remove draw buffer as it has not been created\n");
+	OutputDebugString("Vulkan: Removing draw post present command buffers\n");
 	vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_postPresentCommandBuffer);
 }
 
 VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 {
+	std::string name = "vulkanTestApp";
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; // Mandatory
 	appInfo.pNext = NULL;                               // Mandatory
-	appInfo.pApplicationName = "vulkanTestApp";
-	appInfo.pEngineName = "vulkanTestApp";
+	appInfo.pApplicationName = name.c_str();
+	appInfo.pEngineName = name.c_str();
 	appInfo.apiVersion = VK_API_VERSION;
 	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
 
-#ifdef _WIN32
+	// Windows specific
 	enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#else
-	enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#endif
 
 	// Set up and create the Vulkan main instance
 	VkInstanceCreateInfo instanceCreateInfo = {};

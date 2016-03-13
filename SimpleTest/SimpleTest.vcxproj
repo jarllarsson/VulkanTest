@@ -69,17 +69,25 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)\bin\</OutDir>
-    <IntDir>$(SolutionDir)\obj\$(ProjectName)\$(ConfigurationName)</IntDir>
-    <TargetName>$(ProjectName)_d</TargetName>
-    <IncludePath>$(SolutionDir)include\glm;$(SolutionDir)include\SDL2;$(SolutionDir)include\smallvulkanwrappers;$(SolutionDir)include\vulkan;$(SolutionDir)include\assimp;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)lib\SDL2;$(SolutionDir)lib\vulkan;$(SolutionDir)lib\assimp;$(LibraryPath)</LibraryPath>
+    <OutDir>$(SolutionDir)bin\$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(ProjectName)\$(PlatformShortName)\$(ConfigurationName)\</IntDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <IncludePath>$(SolutionDir)include\glm;$(SolutionDir)include\SDL2;$(SolutionDir)include\smallvulkanwrappers;$(SolutionDir)include\vulkan;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)lib\SDL2\$(PlatformShortName)\$(Configuration);$(SolutionDir)lib\vulkan;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)\bin\</OutDir>
-    <IntDir>$(SolutionDir)\obj\$(ProjectName)\$(ConfigurationName)</IntDir>
+    <OutDir>$(SolutionDir)\bin\$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(ProjectName)\$(PlatformShortName)\$(ConfigurationName)\</IntDir>
     <IncludePath>$(SolutionDir)include\glm;$(SolutionDir)include\SDL2;$(SolutionDir)include\smallvulkanwrappers;$(SolutionDir)include\vulkan;$(SolutionDir)include\assimp;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)lib\SDL2;$(SolutionDir)lib\vulkan;$(SolutionDir)lib\assimp;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)lib\SDL2\$(Platform)\$(Configuration);$(SolutionDir)lib\vulkan;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)\bin\$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(ProjectName)\$(PlatformShortName)\$(ConfigurationName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)\bin\$(PlatformShortName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\obj\$(ProjectName)\$(PlatformShortName)\$(ConfigurationName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -94,10 +102,12 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;VK_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;_USE_MATH_DEFINES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;vulkan-1.lib;assimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>Debug</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -144,9 +154,9 @@
   <ItemGroup>
     <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h" />
     <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h" />
-    <ClInclude Include="VulkanCommandBufferFactory.h" />
     <ClInclude Include="DebugPrint.h" />
     <ClInclude Include="ErrorReporting.h" />
+    <ClInclude Include="VulkanCommandBufferFactory.h" />
     <ClInclude Include="VulkanDepthStencil.h" />
     <ClInclude Include="VulkanGraphics.h" />
     <ClInclude Include="VulkanHelper.h" />

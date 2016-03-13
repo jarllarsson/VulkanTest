@@ -66,9 +66,12 @@ VulkanSwapChain::~VulkanSwapChain()
 {
 	for (auto buffer : m_buffers)
 	{
+		OutputDebugString("Vulkan: Removing swap chain image view\n");
 		vkDestroyImageView(m_device, buffer.m_imageView, nullptr);
 	}
+	OutputDebugString("Vulkan: Removing swap chain object's SwapchainKHR\n");
 	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+	OutputDebugString("Vulkan: Removing swap chain object's SurfaceKHR\n");
 	vkDestroySurfaceKHR(m_vulkanInstance, m_surface, nullptr);
 }
 

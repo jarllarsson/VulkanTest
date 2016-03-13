@@ -1,7 +1,10 @@
+#ifdef hhhhhhhh
 #include "Wnd.h"
 #include "ErrorReporting.h"
 #include <SDL.h>
+#undef main // sdl has its own main... NOPE! :<
 #include <SDL_syswm.h>
+
 
 namespace Wnd
 {
@@ -139,3 +142,4 @@ void Wnd::ConvertSDLEvent(const SDL_Event& in_event, WndEvent& inout_wndEvent)
 	}
 
 }
+#endif

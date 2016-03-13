@@ -14,22 +14,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Wnd.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="VulkanGraphics.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\include\smallvulkanwrappers\vulkantools.cpp">
       <Filter>Vulkan Helpers</Filter>
     </ClCompile>
     <ClCompile Include="..\include\smallvulkanwrappers\vulkandebug.cpp">
       <Filter>Vulkan Helpers</Filter>
     </ClCompile>
-    <ClCompile Include="VulkanSwapChain.cpp">
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Wnd.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="VulkanCommandBufferFactory.cpp">
@@ -38,36 +32,33 @@
     <ClCompile Include="VulkanDepthStencil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VulkanGraphics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="VulkanMemoryHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="VulkanRenderPassFactory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VulkanSwapChain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ErrorReporting.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Wnd.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanGraphics.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="VulkanHelper.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h">
       <Filter>Vulkan Helpers</Filter>
     </ClInclude>
     <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h">
       <Filter>Vulkan Helpers</Filter>
     </ClInclude>
-    <ClInclude Include="VulkanSwapChain.h">
+    <ClInclude Include="DebugPrint.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="DebugPrint.h">
+    <ClInclude Include="ErrorReporting.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Wnd.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="VulkanCommandBufferFactory.h">
@@ -76,10 +67,19 @@
     <ClInclude Include="VulkanDepthStencil.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="VulkanGraphics.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanHelper.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="VulkanMemoryHelper.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="VulkanRenderPassFactory.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanSwapChain.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

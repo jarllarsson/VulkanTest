@@ -57,7 +57,7 @@ private:
 	// Command buffers for rendering
 	std::vector<VkCommandBuffer> m_drawCommandBuffers;
 	// Command buffer for resetting image formats after presenting
-	VkCommandBuffer m_postPresentCommandBuffer = VK_NULL_HANDLE;
+	VkCommandBuffer m_postPresentCommandBuffer;
 
 
 	// Container for very basic swap chain functionality

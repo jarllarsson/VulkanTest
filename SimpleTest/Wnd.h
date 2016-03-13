@@ -1,3 +1,4 @@
+#ifdef hhhhhhhh
 #pragma once
 #include <windows.h>
 #include <vector>
@@ -24,3 +25,4 @@ namespace Wnd
 	bool GetPlatformWindowInfo(HWND& out_hWnd, HINSTANCE& out_hInstance);
 
 }
+#endif
