@@ -35,7 +35,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Create the Vulkan instance
 	err = CreateInstance(&m_vulkanInstance);
- 	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
+	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
 	uint32_t gpuCount;
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
 	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));	// Initialize memory helper class
@@ -58,8 +58,8 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Create a swap chain representation
 	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
-	                                                &m_width, &m_height,
-	                                                in_hInstance, in_hWnd);
+		&m_width, &m_height,
+		in_hInstance, in_hWnd);
 	// Init factories
 	m_commandBufferFactory = std::make_unique<VulkanCommandBufferFactory>(m_device);
 	m_renderPassFactory = std::make_unique<VulkanRenderPassFactory>(m_device);
@@ -76,10 +76,12 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Setup depth stencil
 	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_memory, m_depthStencil);
-	
+
 	// Command buffer for initializing the depth stencil and swap chain 
 	// images to the right format on the gpu
 	VkCommandBuffer swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
+	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapchainDepthStencilSetupCommandBuffer);
+	if (err) throw ProgramError(std::string("Could not create a setup command buffer for the swapchain and depth stencil: ") + vkTools::errorString(err));
 	m_commandBufferFactory->ConstructSwapchainDepthStencilInitializationCommandBuffer(
 		swapchainDepthStencilSetupCommandBuffer,
 		m_swapChain,
@@ -166,8 +168,6 @@ void VulkanGraphics::Destroy()
 	vkDestroyInstance(m_vulkanInstance, nullptr);
 }
 
-
-
 void VulkanGraphics::DestroyCommandBuffers()
 {
 	vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_drawCommandBuffers.size()), m_drawCommandBuffers.data());
@@ -183,29 +183,29 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 	appInfo.pEngineName = "vulkanTestApp";
 	appInfo.apiVersion = VK_API_VERSION;
 	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
- 
+
 #ifdef _WIN32
- 	enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+	enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #else
- 	enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+	enabledExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
 #endif
- 
- 	// Set up and create the Vulkan main instance
+
+	// Set up and create the Vulkan main instance
 	VkInstanceCreateInfo instanceCreateInfo = {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO; // Mandatory
 	instanceCreateInfo.pNext = NULL;                                   // Mandatory
 	instanceCreateInfo.flags = 0;                                      // Mandatory
- 	instanceCreateInfo.pApplicationInfo = &appInfo;
+	instanceCreateInfo.pApplicationInfo = &appInfo;
 	// Next, set up what extensions to enable
- 	if (enabledExtensions.size() > 0)
- 	{
-//  		if (ENABLE_VALIDATION)
-//  		{
-//  			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-//  		}
- 		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
- 		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
- 	}
+	if (enabledExtensions.size() > 0)
+	{
+		//  		if (ENABLE_VALIDATION)
+		//  		{
+		//  			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+		//  		}
+		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
+		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+	}
 
 	// Finally, set up what layers to enable
 //  	if (ENABLE_VALIDATION)
@@ -214,7 +214,7 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 //  		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 //  	}
 
- 	return vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
+	return vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
 }
 
 
@@ -285,16 +285,16 @@ VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDev
 		deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
 		deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
 	}
-// 	if (ENABLE_VALIDATION)
-// 	{
-// 		deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
-// 		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-// 	}
+	// 	if (ENABLE_VALIDATION)
+	// 	{
+	// 		deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
+	// 		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+	// 	}
 
-	/*
-	In Vulkan you can set several queues into the VkDeviceCreateInfo. With correct queuecount.
-	You can control the priority of each queue with an array of normalized floats, where 1 is highest priority.
-	*/
+		/*
+		In Vulkan you can set several queues into the VkDeviceCreateInfo. With correct queuecount.
+		You can control the priority of each queue with an array of normalized floats, where 1 is highest priority.
+		*/
 
 	return vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, out_device); // no allocation callbacks for now
 }
@@ -331,7 +331,7 @@ VkResult VulkanGraphics::CreateCommandPool(VkCommandPool* out_commandPool)
 	// If so, should be done when surface has been created in the swap chain object,
 	// using vkGetPhysicalDeviceSurfaceSupportKHR:
 	cmdPoolInfo.queueFamilyIndex = m_graphicsQueueIdx;
-	
+
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	return vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, out_commandPool);
 }
@@ -397,11 +397,11 @@ void VulkanGraphics::CreateFrameBuffers()
 	m_frameBuffers.resize(sz);
 	const std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = m_swapChain->GetBuffers();
 	for (uint32_t i = 0; i < sz; i++)
-	{		
+	{
 		// Update first creation attachment struct with the associated image view
 		// The second struct in the attachment array remains the depthstencil view
 		attachments[0] = swapchainBuffers[i].m_imageView;
-		
+
 		VkFramebufferCreateInfo frameBufferCreateInfo = {};
 		frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		frameBufferCreateInfo.pNext = NULL;
@@ -413,6 +413,6 @@ void VulkanGraphics::CreateFrameBuffers()
 		frameBufferCreateInfo.layers = 1;
 
 		VkResult err = vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]);
-		if (err) throw ProgramError(std::string("Could not create frame buffer[")+std::to_string(i)+"] :" + vkTools::errorString(err));
+		if (err) throw ProgramError(std::string("Could not create frame buffer[") + std::to_string(i) + "] :" + vkTools::errorString(err));
 	}
 }
