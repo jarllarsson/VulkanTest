@@ -93,8 +93,8 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	err = CreatePipelineCache();
 	if (err) throw ProgramError(std::string("Could not create pipeline cache: ") + vkTools::errorString(err));
 
-	// 8. setup frame buffer
-
+	// Setup frame buffer
+	CreateFrameBuffers();
 
 	// Submit the setup command buffer to the queue, and then free it (we only need it once, here)
 	SubmitCommandBufferAndAppendWaitToQueue(swapchainDepthStencilSetupCommandBuffer);
@@ -139,11 +139,27 @@ void VulkanGraphics::Destroy()
 {
 	m_swapChain.reset();
 
+	//TODO vkDestroyDescriptorPool(m_device, descriptorPool, nullptr);
+
 	DestroyCommandBuffers();
+	vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+
+	for (uint32_t i = 0; i < static_cast<uint32_t>(m_frameBuffers.size()); i++)
+	{
+		vkDestroyFramebuffer(m_device, m_frameBuffers[i], nullptr);
+	}
+
+	// Todo
+	//for (auto& shaderModule : shaderModules)
+	//{
+	//	vkDestroyShaderModule(device, shaderModule, nullptr);
+	//}
 
 	vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
 	vkDestroyImage(m_device, m_depthStencil.m_image, nullptr);
 	vkFreeMemory(m_device, m_depthStencil.m_gpuMem, nullptr);
+
+	vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
 
 	vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 	vkDestroyDevice(m_device, nullptr);
@@ -322,7 +338,7 @@ VkResult VulkanGraphics::CreateCommandPool(VkCommandPool* out_commandPool)
 
 void VulkanGraphics::CreateCommandBuffers()
 {
-	// Create one command buffer per frame buffer 
+	// Create one command buffer per image buffer 
 	// in the swap chain
 	// Command buffers store a reference to the 
 	// frame buffer inside their render pass info
@@ -359,9 +375,44 @@ void VulkanGraphics::SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_
 	if (err) throw  ProgramError(std::string("Could not submit wait to queue: ") + vkTools::errorString(err));
 }
 
-void VulkanGraphics::CreatePipelineCache()
+VkResult VulkanGraphics::CreatePipelineCache()
 {
 	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
 	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 	return vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache);
+}
+
+void VulkanGraphics::CreateFrameBuffers()
+{
+	// Create frame buffers which use the buffers in the swap chain to
+	// render to and the render pass to be compatible with.
+	VkImageView attachments[2];
+
+	// Depthstencil attachment is the same for all frame buffers
+	attachments[1] = m_depthStencil.m_imageView;
+
+
+	// Create frame buffers for every swap chain image
+	const uint32_t sz = m_swapChain->GetBuffersCount();
+	m_frameBuffers.resize(sz);
+	const std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = m_swapChain->GetBuffers();
+	for (uint32_t i = 0; i < sz; i++)
+	{		
+		// Update first creation attachment struct with the associated image view
+		// The second struct in the attachment array remains the depthstencil view
+		attachments[0] = swapchainBuffers[i].m_imageView;
+		
+		VkFramebufferCreateInfo frameBufferCreateInfo = {};
+		frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		frameBufferCreateInfo.pNext = NULL;
+		frameBufferCreateInfo.renderPass = m_renderPass;
+		frameBufferCreateInfo.attachmentCount = 2;
+		frameBufferCreateInfo.pAttachments = attachments; // attach the image view and the depthstencil view
+		frameBufferCreateInfo.width = m_width;
+		frameBufferCreateInfo.height = m_height;
+		frameBufferCreateInfo.layers = 1;
+
+		VkResult err = vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]);
+		if (err) throw ProgramError(std::string("Could not create frame buffer[")+std::to_string(i)+"] :" + vkTools::errorString(err));
+	}
 }

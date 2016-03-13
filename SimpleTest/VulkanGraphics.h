@@ -27,6 +27,7 @@ private:
 	void     CreateCommandBuffers();
 	void     SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer);
 	VkResult CreatePipelineCache();
+	void     CreateFrameBuffers();
 	// The Vulkan instance
 	VkInstance m_vulkanInstance;
 
@@ -61,6 +62,9 @@ private:
 
 	// Container for very basic swap chain functionality
 	std::shared_ptr<VulkanSwapChain> m_swapChain;
+
+	// Frame buffer for the swap chain images
+	std::vector<VkFramebuffer> m_frameBuffers;
 
 	// Factories
 	std::unique_ptr<VulkanCommandBufferFactory> m_commandBufferFactory;
