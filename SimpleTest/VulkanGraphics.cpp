@@ -29,17 +29,24 @@ VulkanGraphics::~VulkanGraphics()
 	Destroy();
 }
 
+
+
 // Main initialization of Vulkan stuff
 void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 {
-	VkResult err;
+	VkResult err = VK_SUCCESS;
 
 	// Create the Vulkan instance
 	err = CreateInstance(&m_vulkanInstance);
-	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));	// Create the physical device object	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
-	uint32_t gpuCount;
+	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));
+	
+	// Create the physical device object
+	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
+	uint32_t gpuCount = 0;
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
-	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));	// Initialize memory helper class
+	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));
+	
+	// Initialize memory helper class
 	m_memory = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
 
 	// Get graphics queue index on the current physical device
@@ -138,6 +145,47 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// When all the above is implemented we can create the render method that will be called each frame
 }
 
+VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
+{
+	std::string name = "vulkanTestApp";
+	VkApplicationInfo appInfo = {};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; // Mandatory
+	appInfo.pNext = NULL;                               // Mandatory
+	appInfo.pApplicationName = name.c_str();
+	appInfo.pEngineName = name.c_str();
+	appInfo.apiVersion = VK_API_VERSION;
+	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+
+	// Windows specific
+	enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+
+	// Set up and create the Vulkan main instance
+	VkInstanceCreateInfo instanceCreateInfo = {};
+	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO; // Mandatory
+	instanceCreateInfo.pNext = NULL;                                   // Mandatory
+	instanceCreateInfo.flags = 0;                                      // Mandatory
+	instanceCreateInfo.pApplicationInfo = &appInfo;
+	// Next, set up what extensions to enable
+	if (enabledExtensions.size() > 0)
+	{
+		//  		if (ENABLE_VALIDATION)
+		//  		{
+		//  			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+		//  		}
+		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
+		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
+	}
+
+	// Finally, set up what layers to enable
+	//  	if (ENABLE_VALIDATION)
+	//  	{
+	//  		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
+	//  		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+	//  	}
+
+	return vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
+}
+
 void VulkanGraphics::Destroy()
 {
 	OutputDebugString("Vulkan: Removing swap chain\n");
@@ -188,48 +236,6 @@ void VulkanGraphics::DestroyCommandBuffers()
 	OutputDebugString("Vulkan: Removing draw post present command buffers\n");
 	vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_postPresentCommandBuffer);
 }
-
-VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
-{
-	std::string name = "vulkanTestApp";
-	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; // Mandatory
-	appInfo.pNext = NULL;                               // Mandatory
-	appInfo.pApplicationName = name.c_str();
-	appInfo.pEngineName = name.c_str();
-	appInfo.apiVersion = VK_API_VERSION;
-	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
-
-	// Windows specific
-	enabledExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-
-	// Set up and create the Vulkan main instance
-	VkInstanceCreateInfo instanceCreateInfo = {};
-	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO; // Mandatory
-	instanceCreateInfo.pNext = NULL;                                   // Mandatory
-	instanceCreateInfo.flags = 0;                                      // Mandatory
-	instanceCreateInfo.pApplicationInfo = &appInfo;
-	// Next, set up what extensions to enable
-	if (enabledExtensions.size() > 0)
-	{
-		//  		if (ENABLE_VALIDATION)
-		//  		{
-		//  			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-		//  		}
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
-	}
-
-	// Finally, set up what layers to enable
-//  	if (ENABLE_VALIDATION)
-//  	{
-//  		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
-//  		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-//  	}
-
-	return vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
-}
-
 
 
 uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const

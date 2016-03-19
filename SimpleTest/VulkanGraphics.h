@@ -17,9 +17,9 @@ public:
 	~VulkanGraphics();
 private:
 	void Init(HWND in_hWnd, HINSTANCE in_hInstance);
+	VkResult CreateInstance(VkInstance* out_instance);
 	void Destroy();
 	void DestroyCommandBuffers();
-	VkResult CreateInstance(VkInstance* out_instance);
 	uint32_t GetGraphicsQueueInternalIndex() const;
 	VkResult CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device);
 	bool     GetDepthFormat(VkFormat* out_format);
