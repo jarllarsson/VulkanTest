@@ -1,6 +1,7 @@
 #include "Wnd.h"
 #include "ErrorReporting.h"
 #include <SDL.h>
+#undef main
 #include <SDL_syswm.h>
 
 namespace Wnd
