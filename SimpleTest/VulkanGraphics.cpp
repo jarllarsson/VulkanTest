@@ -12,6 +12,8 @@
 #include "VulkanMemoryHelper.h"
 #include "VulkanRenderPassFactory.h"
 
+#include "Vertex.h"
+
 
 #define ENABLE_VALIDATION false
 
@@ -318,7 +320,7 @@ VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDev
 	return vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, out_device); // no allocation callbacks for now
 }
 
-bool VulkanGraphics::GetDepthFormat(VkFormat* out_format)
+bool VulkanGraphics::GetDepthFormat(VkFormat* out_format) const
 {
 	// Find supported depth format
 	// Prefer 24 bits of depth and 8 bits of stencil
@@ -434,4 +436,9 @@ void VulkanGraphics::CreateFrameBuffers()
 		VkResult err = vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]);
 		if (err) throw ProgramError(std::string("Could not create frame buffer[") + std::to_string(i) + "] :" + vkTools::errorString(err));
 	}
+}
+
+void VulkanGraphics::SetupVertices()
+{
+
 }

@@ -88,6 +88,7 @@
     <ClCompile Include="..\include\smallvulkanwrappers\vulkandebug.cpp" />
     <ClCompile Include="..\include\smallvulkanwrappers\vulkantools.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="VulkanBufferFactory.cpp" />
     <ClCompile Include="VulkanCommandBufferFactory.cpp" />
     <ClCompile Include="VulkanDepthStencil.cpp" />
     <ClCompile Include="VulkanGraphics.cpp" />
@@ -101,6 +102,10 @@
     <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h" />
     <ClInclude Include="DebugPrint.h" />
     <ClInclude Include="ErrorReporting.h" />
+    <ClInclude Include="VulkanMesh.h" />
+    <ClInclude Include="VulkanVertexLayout.h" />
+    <ClInclude Include="Vertex.h" />
+    <ClInclude Include="VulkanBufferFactory.h" />
     <ClInclude Include="VulkanCommandBufferFactory.h" />
     <ClInclude Include="VulkanDepthStencil.h" />
     <ClInclude Include="VulkanGraphics.h" />

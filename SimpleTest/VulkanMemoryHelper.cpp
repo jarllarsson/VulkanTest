@@ -26,3 +26,4 @@ VkBool32 VulkanMemoryHelper::GetMemoryType(uint32_t typeBits, VkFlags properties
 	}
 	return false;
 }
+
