@@ -8,7 +8,11 @@
 class VulkanSwapChain;
 class VulkanCommandBufferFactory;
 class VulkanRenderPassFactory;
+class VulkanBufferFactory;
 class VulkanMemoryHelper;
+
+struct VulkanVertexLayout;
+class VulkanMesh;
 
 class VulkanGraphics
 {
@@ -34,6 +38,7 @@ private:
 
 
 	// Rendering
+	void CreateVertexLayouts();
 	void SetupVertices(); // Temporary method that sets up all geometry to be used
 
 
@@ -78,8 +83,15 @@ private:
 
 	// Factories
 	std::unique_ptr<VulkanCommandBufferFactory> m_commandBufferFactory;
-	std::unique_ptr<VulkanRenderPassFactory> m_renderPassFactory;
-	std::shared_ptr<VulkanDepthStencilFactory>  m_depthStencilFactory;
+	std::unique_ptr<VulkanRenderPassFactory>    m_renderPassFactory;
+	std::unique_ptr<VulkanDepthStencilFactory>  m_depthStencilFactory;
+	std::unique_ptr<VulkanBufferFactory>        m_bufferFactory;
+
+
+	// Geometry
+	std::shared_ptr<VulkanVertexLayout> m_simpleVertexLayout;
+	std::shared_ptr<VulkanMesh> m_triangleMesh;
+
 
 	// Render size
 	uint32_t m_width, m_height;

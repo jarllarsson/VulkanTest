@@ -11,11 +11,17 @@
 #include "VulkanCommandBufferFactory.h"
 #include "VulkanMemoryHelper.h"
 #include "VulkanRenderPassFactory.h"
+#include "VulkanBufferFactory.h"
 
 #include "Vertex.h"
+#include "VulkanVertexLayout.h"
+#include "VulkanMesh.h"
 
 
 #define ENABLE_VALIDATION false
+
+// Binding IDs
+#define VERTEX_BUFFER_BIND_ID 0
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
 	: m_graphicsQueueIdx()
@@ -70,22 +76,23 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
 		&m_width, &m_height,
 		in_hInstance, in_hWnd);
+
 	// Init factories
 	m_commandBufferFactory = std::make_unique<VulkanCommandBufferFactory>(m_device);
 	m_renderPassFactory = std::make_unique<VulkanRenderPassFactory>(m_device);
-	m_depthStencilFactory = std::make_shared<VulkanDepthStencilFactory>(m_device);
+	m_depthStencilFactory = std::make_unique<VulkanDepthStencilFactory>(m_device, m_memory);
+	m_bufferFactory = std::make_unique<VulkanBufferFactory>(m_device, m_memory);
 
 	// TODO: Add Vulkan prepare stuff here:
 	// Create command pool
 	err = CreateCommandPool(&m_commandPool);
 	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
 
-
 	// Create command buffers for each frame image buffer in the swap chain, for rendering __DONE__
 	CreateCommandBuffers();
 
 	// Setup depth stencil
-	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_memory, m_depthStencil);
+	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_depthStencil);
 
 	// Command buffer for initializing the depth stencil and swap chain 
 	// images to the right format on the gpu
@@ -118,10 +125,19 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// 10. other command buffers should then be created >here<
 
 	// Then we need to implement these, from the derived class in the example:
-	// prepareVertices();
+	// prepareVertices(); DONE
+
+	// Create triangle mesh
+	VulkanMesh triangle;
+	m_bufferFactory->CreateTriangle(triangle);
+	m_triangleMesh = std::make_shared<VulkanMesh>(triangle);
+
+	// Set up a simple vertex layout for our mesh
+	CreateVertexLayouts();
+
 	// prepareUniformBuffers();
 	// setupDescriptorSetLayout();
-	// preparePipelines();
+	// preparePipelines(); // here we will need to create a temporary VkPipelineVertexInputStateCreateInfo for pipelineCreateInfo.pVertexInputState from our vertexlayout, as we're not storing the creation struct unlike the examples
 	// setupDescriptorPool();
 	// setupDescriptorSet();
 	// buildCommandBuffers();
@@ -436,6 +452,31 @@ void VulkanGraphics::CreateFrameBuffers()
 		VkResult err = vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]);
 		if (err) throw ProgramError(std::string("Could not create frame buffer[") + std::to_string(i) + "] :" + vkTools::errorString(err));
 	}
+}
+
+void VulkanGraphics::CreateVertexLayouts()
+{
+	m_simpleVertexLayout = std::make_shared<VulkanVertexLayout>();
+	VulkanVertexLayout& vertices = *m_simpleVertexLayout.get();
+	// Binding description
+	vertices.m_bindingDescriptions.resize(1);
+	vertices.m_bindingDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+	vertices.m_bindingDescriptions[0].stride = sizeof(Vertex);
+	vertices.m_bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	// An entry for each data type in the vertex, for example: [0]:pos, [1]:col
+	vertices.m_attributeDescriptions.resize(2);
+	// Position
+	vertices.m_attributeDescriptions[0].binding = VERTEX_BUFFER_BIND_ID;
+	vertices.m_attributeDescriptions[0].location = 0;
+	vertices.m_attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertices.m_attributeDescriptions[0].offset = 0;
+	// Color
+	vertices.m_attributeDescriptions[1].binding = VERTEX_BUFFER_BIND_ID;
+	vertices.m_attributeDescriptions[1].location = 1;
+	vertices.m_attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertices.m_attributeDescriptions[1].offset = sizeof(float) * 3; // size of position is offset
+
 }
 
 void VulkanGraphics::SetupVertices()

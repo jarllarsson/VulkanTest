@@ -4,16 +4,17 @@
 #include "vulkantools.h"
 
 
-VulkanDepthStencilFactory::VulkanDepthStencilFactory(VkDevice in_device)
+VulkanDepthStencilFactory::VulkanDepthStencilFactory(VkDevice in_device, const std::shared_ptr<VulkanMemoryHelper> in_memory)
 	: m_device(in_device)
+	, m_memory(in_memory)
 {
 
 }
 
-void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t in_width, uint32_t in_height, const std::shared_ptr<VulkanMemoryHelper> in_memory,
+void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t in_width, uint32_t in_height,
 	VulkanDepthStencil& out_depthStencil)
 {
-	if (in_memory == nullptr) return;
+	if (m_memory == nullptr) return;
 
 	// Creation information for the depth stencil image
 	VkImageCreateInfo imageCreationInfo = {};
@@ -59,7 +60,7 @@ void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t 
 	// Allocate memory for the image on the gpu
 	vkGetImageMemoryRequirements(m_device, out_depthStencil.m_image, &memoryRequirements);
 	memoryAllocInfo.allocationSize = memoryRequirements.size;
-	in_memory->GetMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocInfo.memoryTypeIndex);
+	m_memory->GetMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocInfo.memoryTypeIndex);
 	err = vkAllocateMemory(m_device, &memoryAllocInfo, nullptr, &out_depthStencil.m_gpuMem);
 	if (err) throw ProgramError(std::string("Could not allocate depth stencil memory on GPU: ") + vkTools::errorString(err));
 
