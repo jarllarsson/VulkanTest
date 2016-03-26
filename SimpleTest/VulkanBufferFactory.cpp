@@ -102,7 +102,7 @@ bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 
 	// Create the buffer object
 	VkResult err = vkCreateBuffer(m_device, &bufCreateInfo, nullptr, &out_buffer);
-	if (err) throw ProgramError(std::string("Could not create buffer"));
+	if (err) throw ProgramError(std::string("Create buffer"));
 
 	// Allocate memory on gpu
 	vkGetBufferMemoryRequirements(m_device, out_buffer, &memoryRequirements);
@@ -112,7 +112,7 @@ bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
 		&memoryAllocationInfo.memoryTypeIndex);
 	err = vkAllocateMemory(m_device, &memoryAllocationInfo, nullptr, &out_allocatedDeviceMemory);
-	if (err) throw ProgramError(std::string("Could not allocate memory on device for buffer"));
+	if (err) throw ProgramError(std::string("Allocate memory on device for buffer"));
 
 	// If we have initialization data, then copy it to the gpu
 	if (in_data != nullptr)
@@ -120,14 +120,14 @@ bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 		// TODO: Maybe move map/unmap operations to a helper class or make a generic buffer base class that has this sort of stuff
 		void *mapped;
 		err = vkMapMemory(m_device, out_allocatedDeviceMemory, 0, in_size, 0, &mapped);
-		if (err) throw ProgramError(std::string("Could not map data for buffer"));
+		if (err) throw ProgramError(std::string("Map data for buffer"));
 		memcpy(mapped, in_data, in_size);
 		vkUnmapMemory(m_device, out_allocatedDeviceMemory);
 	}
 
 	// Bind buffer
 	err = vkBindBufferMemory(m_device, out_buffer, out_allocatedDeviceMemory, 0);
-	if (err) throw ProgramError(std::string("Could not bind buffer"));
+	if (err) throw ProgramError(std::string("Bind buffer"));
 
 	return true;
 }

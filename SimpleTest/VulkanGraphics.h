@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include "MathTypes.h"
 #include "vulkan/vulkan.h"
 #include "VulkanDepthStencil.h"
 
@@ -33,15 +34,20 @@ private:
 	VkResult CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device);
 	bool     GetDepthFormat(VkFormat* out_format) const;
 	VkResult CreateCommandPool(VkCommandPool* out_commandPool);
-	void     CreateCommandBuffers();
+	void     CreateRenderCommandBuffers();
 	void     SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer);
 	VkResult CreatePipelineCache();
 	void     CreateFrameBuffers();
+
+	VkDescriptorSetLayoutBinding    CreateDescriptorSetLayoutBinding(uint32_t in_descriptorBindingId, VkDescriptorType in_type, VkShaderStageFlags in_shaderStageFlags);
+	VkDescriptorSetLayoutCreateInfo CreateDescriptorSetLayoutCreateInfo(const std::vector<VkDescriptorSetLayoutBinding>& in_bindings);
 
 
 	// Rendering
 	void CreateVertexLayouts();
 	void CreateUniformBuffers();
+	void CreateDescriptorSetLayout();
+	void CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout);
 
 
 	// Data
@@ -97,6 +103,13 @@ private:
 	// Uniform buffers (think sorta like constant buffers in DX)
 	std::shared_ptr<VulkanUniformBufferPerFrame> m_ubufPerFrame;
 	glm::vec3 m_rotation; // temp rotation vector of view 
+
+	// Pipeline layout
+	VkPipelineLayout m_pipelineLayout;
+
+	// Descriptor sets
+	VkDescriptorSet       m_descriptorSet;
+	VkDescriptorSetLayout m_descriptorSetLayout;
 
 
 	// Render size

@@ -7,7 +7,6 @@
 #include "ErrorReporting.h"
 #include "vulkantools.h" // error string help
 #include "vulkandebug.h" // debug layer help (not implemented yet)
-#include "MathTypes.h"
 
 // General Vulkan setup helpers and factories
 #include "VulkanSwapChain.h"
@@ -56,13 +55,13 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Create the Vulkan instance
 	err = CreateInstance(&m_vulkanInstance);
-	if (err) throw ProgramError(std::string("Could not create Vulkan instance: ") + vkTools::errorString(err));
+	if (err) throw ProgramError(std::string("Create Vulkan instance: ") + vkTools::errorString(err));
 	
 	// Create the physical device object
 	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
 	uint32_t gpuCount = 0;
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
-	if (err) throw ProgramError(std::string("Could not find GPUs: ") + vkTools::errorString(err));
+	if (err) throw ProgramError(std::string("Enumerating GPUs: ") + vkTools::errorString(err));
 	
 	// Initialize memory helper class
 	m_memory = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
@@ -72,21 +71,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Create the logical device
 	err = CreateLogicalDevice(m_graphicsQueueIdx, &m_device);
-	if (err) throw ProgramError(std::string("Could not create logical device: ") + vkTools::errorString(err));
-
-	// Get the graphics queue
-	vkGetDeviceQueue(m_device, m_graphicsQueueIdx, 0, &m_queue);
-
-	// Set color format
-	m_colorformat = VK_FORMAT_B8G8R8A8_UNORM;
-	// Get and set depth format
-	if (!GetDepthFormat(&m_depthFormat)) throw ProgramError(std::string("Could set up the depth format."));
-
-	// Create a swap chain representation
-	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
-		&m_width, &m_height,
-		in_hInstance, in_hWnd);
-
+	if (err) throw ProgramError(std::string("Create logical device: ") + vkTools::errorString(err));
 
 	// Init factories
 	m_commandBufferFactory = std::make_unique<VulkanCommandBufferFactory>(m_device);
@@ -95,16 +80,29 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	m_bufferFactory = std::make_unique<VulkanBufferFactory>(m_device, m_memory);
 
 
-	// Create command pool
-	err = CreateCommandPool(&m_commandPool);
-	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
-
-	// Create command buffers for each frame image buffer in the swap chain, for rendering __DONE__
-	CreateCommandBuffers();
-
 	// ================================================
 	// 2. Prepare render usage of Vulkan
 	// ================================================
+
+	// Get the graphics queue
+	vkGetDeviceQueue(m_device, m_graphicsQueueIdx, 0, &m_queue);
+
+	// Set color format
+	m_colorformat = VK_FORMAT_B8G8R8A8_UNORM;
+	// Get and set depth format
+	if (!GetDepthFormat(&m_depthFormat)) throw ProgramError(std::string("Set up the depth format."));
+
+	// Create a swap chain representation
+	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
+		&m_width, &m_height,
+		in_hInstance, in_hWnd);
+
+	// Create command pool
+	err = CreateCommandPool(&m_commandPool);
+	if (err) throw ProgramError(std::string("Create command pool: ") + vkTools::errorString(err));
+
+	// Create command buffers for each frame image buffer in the swap chain, for rendering
+	CreateRenderCommandBuffers();
 
 	// Setup depth stencil
 	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_depthStencil);
@@ -113,7 +111,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// images to the right format on the gpu
 	VkCommandBuffer swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
 	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapchainDepthStencilSetupCommandBuffer);
-	if (err) throw ProgramError(std::string("Could not create a setup command buffer for the swapchain and depth stencil: ") + vkTools::errorString(err));
+	if (err) throw ProgramError(std::string("Create a setup command buffer for the swapchain and depth stencil: ") + vkTools::errorString(err));
 	m_commandBufferFactory->ConstructSwapchainDepthStencilInitializationCommandBuffer(
 		swapchainDepthStencilSetupCommandBuffer,
 		m_swapChain,
@@ -122,11 +120,11 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Create the render pass
 	err = m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
-	if (err) throw ProgramError(std::string("Could not create render pass: ") + vkTools::errorString(err));
+	if (err) throw ProgramError(std::string("Create render pass: ") + vkTools::errorString(err));
 
 	// Create a pipeline cache
 	err = CreatePipelineCache();
-	if (err) throw ProgramError(std::string("Could not create pipeline cache: ") + vkTools::errorString(err));
+	if (err) throw ProgramError(std::string("Create pipeline cache: ") + vkTools::errorString(err));
 
 	// Setup frame buffer
 	CreateFrameBuffers();
@@ -150,9 +148,12 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	CreateVertexLayouts();
 
 	// Set up the uniform buffers
-	CreateUniformBuffers()
+	CreateUniformBuffers();
 
-	// setupDescriptorSetLayout();
+	// Create descriptor set layout and with that then set up a corresponding pipeline layout
+	CreateDescriptorSetLayout();
+	CreatePipelineLayout(m_descriptorSetLayout, m_pipelineLayout);
+
 
 	// preparePipelines(); // here we will need to create a temporary VkPipelineVertexInputStateCreateInfo for pipelineCreateInfo.pVertexInputState from our vertexlayout, as we're not storing the creation struct unlike the examples
 	// setupDescriptorPool();
@@ -283,7 +284,7 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueCount, NULL);
 	if (queueCount <= 0)
 	{
-		throw ProgramError(std::string("Could not find any queues on selected GPU"));
+		throw ProgramError(std::string("Get queues on selected GPU"));
 	}
 
 	// When we have the count of the available queues, we can create a vector of that size and
@@ -390,7 +391,7 @@ VkResult VulkanGraphics::CreateCommandPool(VkCommandPool* out_commandPool)
 	return vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, out_commandPool);
 }
 
-void VulkanGraphics::CreateCommandBuffers()
+void VulkanGraphics::CreateRenderCommandBuffers()
 {
 	// Create one command buffer per image buffer 
 	// in the swap chain
@@ -403,11 +404,11 @@ void VulkanGraphics::CreateCommandBuffers()
 
 	m_drawCommandBuffers.resize(count);
 	VkResult err = m_commandBufferFactory->CreateCommandBuffers(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_drawCommandBuffers);
-	if (err) throw ProgramError(std::string("Could not allocate command buffers from pool: ") + vkTools::errorString(err));
+	if (err) throw ProgramError(std::string("Allocate command buffers from pool: ") + vkTools::errorString(err));
 
 	// Create a post-present command buffer, it is used to restore the image layout after presenting
 	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_postPresentCommandBuffer);
-	if (err) throw ProgramError(std::string("Could not allocate post-present command buffer from pool: ") + vkTools::errorString(err));
+	if (err) throw ProgramError(std::string("Allocate post-present command buffer from pool: ") + vkTools::errorString(err));
 }
 
 void VulkanGraphics::SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer)
@@ -423,10 +424,10 @@ void VulkanGraphics::SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_
 	submitInfo.pCommandBuffers = &in_commandBuffer;
 
 	err = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
-	if (err) throw  ProgramError(std::string("Could not submit command buffer: ") + vkTools::errorString(err));
+	if (err) throw  ProgramError(std::string("Submit command buffer: ") + vkTools::errorString(err));
 
 	err = vkQueueWaitIdle(m_queue);
-	if (err) throw  ProgramError(std::string("Could not submit wait to queue: ") + vkTools::errorString(err));
+	if (err) throw  ProgramError(std::string("Submit wait to queue: ") + vkTools::errorString(err));
 }
 
 VkResult VulkanGraphics::CreatePipelineCache()
@@ -467,8 +468,30 @@ void VulkanGraphics::CreateFrameBuffers()
 		frameBufferCreateInfo.layers = 1;
 
 		VkResult err = vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]);
-		if (err) throw ProgramError(std::string("Could not create frame buffer[") + std::to_string(i) + "] :" + vkTools::errorString(err));
+		if (err) throw ProgramError(std::string("Create frame buffer[") + std::to_string(i) + "] :" + vkTools::errorString(err));
 	}
+}
+
+VkDescriptorSetLayoutBinding VulkanGraphics::CreateDescriptorSetLayoutBinding(uint32_t in_descriptorBindingId,
+	VkDescriptorType in_type,
+	VkShaderStageFlags in_shaderStageFlags)
+{
+	VkDescriptorSetLayoutBinding setLayoutBinding = {};
+	setLayoutBinding.descriptorType = in_type;
+	setLayoutBinding.stageFlags = in_shaderStageFlags;
+	setLayoutBinding.binding = in_descriptorBindingId;
+	setLayoutBinding.descriptorCount = 1; // not sure when this is not 1
+	return setLayoutBinding;
+}
+
+VkDescriptorSetLayoutCreateInfo VulkanGraphics::CreateDescriptorSetLayoutCreateInfo(const std::vector<VkDescriptorSetLayoutBinding>& in_bindings)
+{
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = NULL;
+	descriptorSetLayoutCreateInfo.pBindings = in_bindings.data();
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(in_bindings.size());
+	return descriptorSetLayoutCreateInfo;
 }
 
 void VulkanGraphics::CreateVertexLayouts()
@@ -517,4 +540,40 @@ void VulkanGraphics::CreateUniformBuffers()
 	// --------------------------------------------------------------------------------------------------------
 
 	// TODO: other buffers based on how often they're updated
+}
+
+void VulkanGraphics::CreateDescriptorSetLayout()
+{
+	// Setup the descriptor's layout (TODO: Create factory for this if we need more?)
+	// A description of what shader stages the uniform buffers (and image sampler) are bound to.
+
+	// Every shader binding should map to one descriptor layout
+
+	// The following is set ups a descriptor layout for accessing our per-frame uniform buffer from the vertex shader:
+	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
+	{
+		// Binding 0 : binding of a uniform buffer for vertex shader stage access
+		CreateDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+	};
+	VkDescriptorSetLayoutCreateInfo descriptorLayout = CreateDescriptorSetLayoutCreateInfo(setLayoutBindings);
+
+	VkResult err = vkCreateDescriptorSetLayout(m_device, &descriptorLayout, NULL, &m_descriptorSetLayout);
+	if(err) throw ProgramError(std::string("Create descriptor set layout: ") + vkTools::errorString(err));
+}
+
+void VulkanGraphics::CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout)
+{
+	// Create a pipeline layout which is to be used to create the pipeline which 
+	// uses the given descriptor set layout
+
+	// This method can be used to set up different pipeline layouts for different descriptor sets.
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = NULL;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &in_descriptorSetLayout;
+
+	VkResult err = vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &out_pipelineLayout);
+	if (err) throw ProgramError(std::string("Create pipeline layout: ") + vkTools::errorString(err));
 }

@@ -33,7 +33,7 @@ void VulkanCommandBufferFactory::ConstructSwapchainDepthStencilInitializationCom
 	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
 	VkResult err = vkBeginCommandBuffer(inout_buffer, &cmdBufInfo);
-	if (err) throw ProgramError(std::string("Could not begin the SwapchainDepthStencilInitialization Command buffer"));
+	if (err) throw ProgramError(std::string("Begin swapchain's depthstencil-initialization command buffer"));
 
 	// Swap chain set up on GPU
 	std::vector<VulkanSwapChain::SwapChainBuffer>& buffers = in_swapChain->GetBuffers();
@@ -48,7 +48,7 @@ void VulkanCommandBufferFactory::ConstructSwapchainDepthStencilInitializationCom
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR); // image layout: old, new
 
 	err = vkEndCommandBuffer(inout_buffer);
-	if (err) throw ProgramError(std::string("Could not end the SwapchainDepthStencilInitialization Command buffer"));
+	if (err) throw ProgramError(std::string("End swapchain's depthstencil-initialization command buffer"));
 }
 
 VkCommandBufferAllocateInfo VulkanCommandBufferFactory::MakeInfoStruct(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, int in_bufferCount/* = 1*/)
