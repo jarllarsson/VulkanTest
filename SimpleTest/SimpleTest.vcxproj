@@ -103,6 +103,7 @@
     <ClInclude Include="DebugPrint.h" />
     <ClInclude Include="ErrorReporting.h" />
     <ClInclude Include="MathTypes.h" />
+    <ClInclude Include="VulkanShaderLoader.h" />
     <ClInclude Include="VulkanUniformBufferPerFrame.h" />
     <ClInclude Include="VulkanMesh.h" />
     <ClInclude Include="VulkanVertexLayout.h" />

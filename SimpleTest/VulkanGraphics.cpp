@@ -14,6 +14,7 @@
 #include "VulkanMemoryHelper.h"
 #include "VulkanRenderPassFactory.h"
 #include "VulkanBufferFactory.h"
+#include "VulkanShaderLoader.h"
 
 // Geometry
 #include "Vertex.h"
@@ -150,12 +151,12 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Set up the uniform buffers
 	CreateUniformBuffers();
 
-	// Create descriptor set layout and with that then set up a corresponding pipeline layout
+	// Create descriptor set layout and with that then set up a 
+	// corresponding pipeline layout and create the pipeline
 	CreateDescriptorSetLayout();
 	CreatePipelineLayout(m_descriptorSetLayout, m_pipelineLayout);
+	CreatePipelineAndLoadShaders();
 
-
-	// preparePipelines(); // here we will need to create a temporary VkPipelineVertexInputStateCreateInfo for pipelineCreateInfo.pVertexInputState from our vertexlayout, as we're not storing the creation struct unlike the examples
 	// setupDescriptorPool();
 	// setupDescriptorSet();
 	// buildCommandBuffers();
@@ -212,7 +213,7 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
 	}
 
-	// Finally, set up what layers to enable
+	// Set up what debug layers to enable
 	//  	if (ENABLE_VALIDATION)
 	//  	{
 	//  		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
@@ -239,11 +240,11 @@ void VulkanGraphics::Destroy()
 		vkDestroyFramebuffer(m_device, m_frameBuffers[i], nullptr);
 	}
 
-	// Todo
-	//for (auto& shaderModule : shaderModules)
-	//{
-	//	vkDestroyShaderModule(device, shaderModule, nullptr);
-	//}
+	
+	for (auto& shaderModule : m_shaderModules)
+	{
+		vkDestroyShaderModule(m_device, shaderModule, nullptr);
+	}
 	OutputDebugString("Vulkan: Removing depth stencil view\n");
 	vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
 	OutputDebugString("Vulkan: Removing depth stencil image\n");
@@ -576,4 +577,122 @@ void VulkanGraphics::CreatePipelineLayout(const VkDescriptorSetLayout& in_descri
 
 	VkResult err = vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &out_pipelineLayout);
 	if (err) throw ProgramError(std::string("Create pipeline layout: ") + vkTools::errorString(err));
+}
+
+void VulkanGraphics::CreatePipelineAndLoadShaders()
+{
+	// Create the pipeline for rendering, we create a pipeline containing all the states
+	// that defines it, instead of using a state machine and change during run-time.
+	// We can define for example topology type and rasterization- and blend states.
+	// So in an application with lots of stuff to render in different ways there will be pipelines for
+	// each rendering "mode".
+
+	// TODO: Make a separate pipeline for rendering in "wireframe mode"
+	// TODO: Probably want to separate this, create a factory for making it handy to generate several types of pipelines
+
+	VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
+	VkResult err;
+
+	pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineCreateInfo.layout = m_pipelineLayout; // previously created pipeline
+	pipelineCreateInfo.renderPass = m_renderPass; // renderpass we created, attach to this pipeline
+
+	// Vertex topology setting (triangle lists)
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+	// Rasterization state setting (filled, no culling)
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+
+	// Blend state setting (no blending)
+	VkPipelineColorBlendStateCreateInfo blendStateCreateInfo = {};
+	blendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	VkPipelineColorBlendAttachmentState blendAttachmentState[1] = {};
+	blendAttachmentState[0].colorWriteMask = 0xf;
+	blendAttachmentState[0].blendEnable = VK_FALSE;
+	blendStateCreateInfo.attachmentCount = 1;
+	blendStateCreateInfo.pAttachments = blendAttachmentState;
+
+	// Viewport state
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.scissorCount = 1;
+
+	// Dynamic states
+	// These allow us to control, for instance, the viewport size.
+	// As it would be crazy to create new pipelines each time we did stuff like that.
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	// The dynamic state properties themselves are stored in the command buffer
+	std::vector<VkDynamicState> dynamicStates;
+	dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+	dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+	dynamicStateCreateInfo.dynamicStateCount = dynamicStates.size();
+
+	// Depth and stencil states (depth write, depth test, depth compare <=, no stencil)
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.back.failOp = VK_STENCIL_OP_KEEP;
+	depthStencilStateCreateInfo.back.passOp = VK_STENCIL_OP_KEEP;
+	depthStencilStateCreateInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = depthStencilStateCreateInfo.back;
+
+	// Multi sampling state (disabled)
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pSampleMask = NULL;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; // disabled
+
+	// Load shaders
+	VkPipelineShaderStageCreateInfo shaderStagesCreateInfo[2] = { {},{} };
+
+#ifdef USE_GLSL
+	shaderStagesCreateInfo[0] = VulkanShaderLoader::LoadShaderGLSL("./../shaders/_test/test.vert", "main", m_device, VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStagesCreateInfo[1] = VulkanShaderLoader::LoadShaderGLSL("./../shaders/_test/test.frag", "main", m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
+#else
+	shaderStagesCreateInfo[0] = VulkanShaderLoader::LoadShaderSPIRV("./../shaders/triangle.vert.spv", "main", m_device, VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStagesCreateInfo[1] = VulkanShaderLoader::LoadShaderSPIRV("./../shaders/triangle.frag.spv", "main", m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
+#endif
+	// Store shader modules
+	for (auto& shader : shaderStagesCreateInfo)
+	{
+		m_shaderModules.push_back(shader.module);
+	}
+
+	// Vertex input state (use our simple vertex layout with position and color for this pipeline)
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = NULL;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = m_simpleVertexLayout->m_bindingDescriptions.size();
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = m_simpleVertexLayout->m_bindingDescriptions.data();
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = m_simpleVertexLayout->m_attributeDescriptions.size();
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = m_simpleVertexLayout->m_attributeDescriptions.data();
+
+	// Assign all the states create infos to the main pipeline create info
+	pipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	pipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	pipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	pipelineCreateInfo.pColorBlendState = &blendStateCreateInfo;
+	pipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	pipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	pipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	pipelineCreateInfo.pStages = shaderStagesCreateInfo;
+	pipelineCreateInfo.stageCount = 2; // vertex and fragment shader stages
+	pipelineCreateInfo.renderPass = m_renderPass;
+	pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 }

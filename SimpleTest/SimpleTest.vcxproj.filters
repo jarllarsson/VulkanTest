@@ -103,5 +103,8 @@
     <ClInclude Include="MathTypes.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="VulkanShaderLoader.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

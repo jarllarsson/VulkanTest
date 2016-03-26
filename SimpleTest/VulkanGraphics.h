@@ -47,8 +47,10 @@ private:
 	void CreateVertexLayouts();
 	void CreateUniformBuffers();
 	void CreateDescriptorSetLayout();
-	void CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout);
 
+	// TODO: Maybe move out to factory?:
+	void CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout);
+	void CreatePipelineAndLoadShaders();
 
 	// Data
 
@@ -110,6 +112,9 @@ private:
 	// Descriptor sets
 	VkDescriptorSet       m_descriptorSet;
 	VkDescriptorSetLayout m_descriptorSetLayout;
+
+	// Shaders created (we need to store these for proper cleanup)
+	std::vector<VkShaderModule> m_shaderModules;
 
 
 	// Render size

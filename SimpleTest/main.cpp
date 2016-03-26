@@ -10,18 +10,18 @@ int main(int argc, char* argv[])
 	try 
 	{
 		Wnd::SetupWindow(width, height);
+
+		// Init Vulkan
+		HINSTANCE hInstance;
+		HWND hWnd;
+		Wnd::GetPlatformWindowInfo(hWnd, hInstance);
+		VulkanGraphics vulkanGraphics(hWnd, hInstance, width, height);
 	}
 	catch (ProgramError& e)
 	{
 		MessageBox(0, e.what(), "Error!", MB_OK);
 		return -1;
 	}
-
-	// Init Vulkan
-	HINSTANCE hInstance;
-	HWND hWnd;
-	Wnd::GetPlatformWindowInfo(hWnd, hInstance);
-	VulkanGraphics vulkanGraphics(hWnd, hInstance, width, height);
 
 
 	// Main loop
