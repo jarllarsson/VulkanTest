@@ -3,6 +3,7 @@
 #include "VulkanMemoryHelper.h"
 #include "Vertex.h"
 #include "VulkanMesh.h"
+#include "VulkanUniformBufferPerFrame.h"
 
 VulkanBufferFactory::VulkanBufferFactory(VkDevice in_device, std::shared_ptr<VulkanMemoryHelper> in_memory)
 	: m_device(in_device)
@@ -11,7 +12,7 @@ VulkanBufferFactory::VulkanBufferFactory(VkDevice in_device, std::shared_ptr<Vul
 
 }
 
-void VulkanBufferFactory::CreateTriangle(VulkanMesh& out_mesh)
+void VulkanBufferFactory::CreateTriangle(VulkanMesh& out_mesh) const
 {
 	// Data
 	
@@ -36,7 +37,7 @@ void VulkanBufferFactory::CreateTriangle(VulkanMesh& out_mesh)
 		vertexBufferByteSize,
 		reinterpret_cast<void*>(vertexData.data()),
 		out_mesh.m_vertices.m_buffer,
-		out_mesh.m_vertices.m_memory))
+		out_mesh.m_vertices.m_gpuMem))
 	{
 		out_mesh.m_vertices.m_count = vertexCount;
 	}
@@ -46,21 +47,40 @@ void VulkanBufferFactory::CreateTriangle(VulkanMesh& out_mesh)
 		indexBufferByteSize,
 		reinterpret_cast<void*>(indexData.data()),
 		out_mesh.m_indices.m_buffer,
-		out_mesh.m_indices.m_memory))
+		out_mesh.m_indices.m_gpuMem))
 	{
 		out_mesh.m_indices.m_count = indexCount;
 	}
+}
 
-	// Binding
+void VulkanBufferFactory::CreateUniformBufferPerFrame(VulkanUniformBufferPerFrame& out_buffer,
+	const glm::mat4& in_projMat, const glm::mat4& in_worldMat, const glm::mat4 in_viewMat) const
+{
+	out_buffer.m_data.m_projectionMatrix = in_projMat;
+	out_buffer.m_data.m_worldMatrix = in_worldMat;
+	out_buffer.m_data.m_viewMatrix = in_viewMat;
 
+	VkDeviceSize dataSize = sizeof(out_buffer.m_data);
 
+	// Specify creation of uniform buffer
+	if (CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		dataSize,
+		reinterpret_cast<void*>(&out_buffer.m_data),
+		out_buffer.m_allocation.m_buffer,
+		out_buffer.m_allocation.m_gpuMem))
+	{
+		// Store buffer information in the descriptor
+		out_buffer.m_allocation.m_descriptor.buffer = out_buffer.m_allocation.m_buffer;
+		out_buffer.m_allocation.m_descriptor.offset = 0;
+		out_buffer.m_allocation.m_descriptor.range = dataSize;
+	}
 }
 
 bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 	VkDeviceSize in_size, 
 	void* in_data,
 	VkBuffer& out_buffer,
-	VkDeviceMemory& out_allocatedDeviceMemory)
+	VkDeviceMemory& out_allocatedDeviceMemory) const
 {
 	if (m_memory == nullptr) return false;
 
@@ -87,6 +107,7 @@ bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 	// Allocate memory on gpu
 	vkGetBufferMemoryRequirements(m_device, out_buffer, &memoryRequirements);
 	memoryAllocationInfo.allocationSize = memoryRequirements.size;
+	// Get the appropriate memory type for allocation, where the memory is only visible to the host
 	m_memory->GetMemoryType(memoryRequirements.memoryTypeBits, 
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 
 		&memoryAllocationInfo.memoryTypeIndex);
@@ -96,6 +117,7 @@ bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 	// If we have initialization data, then copy it to the gpu
 	if (in_data != nullptr)
 	{
+		// TODO: Maybe move map/unmap operations to a helper class or make a generic buffer base class that has this sort of stuff
 		void *mapped;
 		err = vkMapMemory(m_device, out_allocatedDeviceMemory, 0, in_size, 0, &mapped);
 		if (err) throw ProgramError(std::string("Could not map data for buffer"));

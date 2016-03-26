@@ -1,24 +1,31 @@
 #include "VulkanGraphics.h"
 
+// Standard libs and overall helpers
 #include <string>
 #include <array>
 #include <vector>
 #include "ErrorReporting.h"
-#include "vulkantools.h"
-#include "vulkandebug.h"
+#include "vulkantools.h" // error string help
+#include "vulkandebug.h" // debug layer help (not implemented yet)
+#include "MathTypes.h"
 
+// General Vulkan setup helpers and factories
 #include "VulkanSwapChain.h"
 #include "VulkanCommandBufferFactory.h"
 #include "VulkanMemoryHelper.h"
 #include "VulkanRenderPassFactory.h"
 #include "VulkanBufferFactory.h"
 
+// Geometry
 #include "Vertex.h"
 #include "VulkanVertexLayout.h"
 #include "VulkanMesh.h"
 
+// Uniform buffers
+#include "VulkanUniformBufferPerFrame.h"
 
-#define ENABLE_VALIDATION false
+
+#define ENABLE_VALIDATION false // set to true to enable debug layer
 
 // Binding IDs
 #define VERTEX_BUFFER_BIND_ID 0
@@ -42,6 +49,9 @@ VulkanGraphics::~VulkanGraphics()
 // Main initialization of Vulkan stuff
 void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 {
+	// ===================================
+	// 1. Set up Vulkan
+	// ===================================
 	VkResult err = VK_SUCCESS;
 
 	// Create the Vulkan instance
@@ -77,19 +87,24 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		&m_width, &m_height,
 		in_hInstance, in_hWnd);
 
+
 	// Init factories
 	m_commandBufferFactory = std::make_unique<VulkanCommandBufferFactory>(m_device);
 	m_renderPassFactory = std::make_unique<VulkanRenderPassFactory>(m_device);
 	m_depthStencilFactory = std::make_unique<VulkanDepthStencilFactory>(m_device, m_memory);
 	m_bufferFactory = std::make_unique<VulkanBufferFactory>(m_device, m_memory);
 
-	// TODO: Add Vulkan prepare stuff here:
+
 	// Create command pool
 	err = CreateCommandPool(&m_commandPool);
 	if (err) throw ProgramError(std::string("Could not create command pool: ") + vkTools::errorString(err));
 
 	// Create command buffers for each frame image buffer in the swap chain, for rendering __DONE__
 	CreateCommandBuffers();
+
+	// ================================================
+	// 2. Prepare render usage of Vulkan
+	// ================================================
 
 	// Setup depth stencil
 	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_depthStencil);
@@ -103,6 +118,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		swapchainDepthStencilSetupCommandBuffer,
 		m_swapChain,
 		m_depthStencil);
+
 
 	// Create the render pass
 	err = m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
@@ -120,23 +136,24 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	vkFreeCommandBuffers(m_device, m_commandPool, 1, &swapchainDepthStencilSetupCommandBuffer);
 	swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
 
+	// Note: Other command buffers if needed should then be created >here<
 
-
-	// 10. other command buffers should then be created >here<
-
-	// Then we need to implement these, from the derived class in the example:
-	// prepareVertices(); DONE
+	// ================================================
+	// 3. Prepare application specific usage of Vulkan
+	// ================================================
 
 	// Create triangle mesh
-	VulkanMesh triangle;
-	m_bufferFactory->CreateTriangle(triangle);
-	m_triangleMesh = std::make_shared<VulkanMesh>(triangle);
+	m_triangleMesh = std::make_shared<VulkanMesh>();
+	m_bufferFactory->CreateTriangle(*m_triangleMesh.get());
 
 	// Set up a simple vertex layout for our mesh
 	CreateVertexLayouts();
 
-	// prepareUniformBuffers();
+	// Set up the uniform buffers
+	CreateUniformBuffers()
+
 	// setupDescriptorSetLayout();
+
 	// preparePipelines(); // here we will need to create a temporary VkPipelineVertexInputStateCreateInfo for pipelineCreateInfo.pVertexInputState from our vertexlayout, as we're not storing the creation struct unlike the examples
 	// setupDescriptorPool();
 	// setupDescriptorSet();
@@ -479,7 +496,25 @@ void VulkanGraphics::CreateVertexLayouts()
 
 }
 
-void VulkanGraphics::SetupVertices()
+void VulkanGraphics::CreateUniformBuffers()
 {
+	// Per frame buffer
+	// --------------------------------------------------------------------------------------------------------
 
+	// Create buffer for projection-, view- and world matrices.
+	glm::mat4 projectionMatrix = glm::perspective(deg_to_rad(60.0f), (float)m_width / (float)m_height, 
+		0.1f, // near
+		1000.0f); // far
+	glm::mat4 viewMatrix = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, -3.0f)); // camera start location
+	m_rotation = glm::vec3();
+	glm::mat4 worldMatrix = glm::mat4();
+	worldMatrix = glm::rotate(worldMatrix, deg_to_rad(m_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+	worldMatrix = glm::rotate(worldMatrix, deg_to_rad(m_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+	worldMatrix = glm::rotate(worldMatrix, deg_to_rad(m_rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+
+	m_ubufPerFrame = std::make_shared<VulkanUniformBufferPerFrame>();
+	m_bufferFactory->CreateUniformBufferPerFrame(*m_ubufPerFrame.get(), projectionMatrix, worldMatrix, viewMatrix);
+	// --------------------------------------------------------------------------------------------------------
+
+	// TODO: other buffers based on how often they're updated
 }

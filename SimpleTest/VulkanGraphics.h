@@ -14,6 +14,8 @@ class VulkanMemoryHelper;
 struct VulkanVertexLayout;
 class VulkanMesh;
 
+struct VulkanUniformBufferPerFrame;
+
 class VulkanGraphics
 {
 public:
@@ -39,7 +41,7 @@ private:
 
 	// Rendering
 	void CreateVertexLayouts();
-	void SetupVertices(); // Temporary method that sets up all geometry to be used
+	void CreateUniformBuffers();
 
 
 	// Data
@@ -91,6 +93,10 @@ private:
 	// Geometry
 	std::shared_ptr<VulkanVertexLayout> m_simpleVertexLayout;
 	std::shared_ptr<VulkanMesh> m_triangleMesh;
+
+	// Uniform buffers (think sorta like constant buffers in DX)
+	std::shared_ptr<VulkanUniformBufferPerFrame> m_ubufPerFrame;
+	glm::vec3 m_rotation; // temp rotation vector of view 
 
 
 	// Render size

@@ -10,14 +10,14 @@ public:
 	{
 		uint32_t m_count;
 		VkBuffer m_buffer;
-		VkDeviceMemory m_memory;
+		VkDeviceMemory m_gpuMem;
 	};
 
 	struct Indices
 	{
 		uint32_t m_count;
 		VkBuffer m_buffer;
-		VkDeviceMemory m_memory;
+		VkDeviceMemory m_gpuMem;
 	};
 
 

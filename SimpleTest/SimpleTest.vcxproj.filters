@@ -97,5 +97,11 @@
     <ClInclude Include="VulkanMesh.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="VulkanUniformBufferPerFrame.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MathTypes.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
