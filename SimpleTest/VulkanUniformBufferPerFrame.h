@@ -12,7 +12,7 @@ struct VulkanUniformBufferPerFrame
 	{
 		VkBuffer m_buffer;
 		VkDeviceMemory m_gpuMem;
-		VkDescriptorBufferInfo m_descriptor;
+		VkDescriptorBufferInfo m_descriptorBufferInfo;
 	};
 
 	struct BufferDataLayout

@@ -4,10 +4,22 @@
 #include "VulkanSwapChain.h"
 #include "vulkantools.h"
 
+
+VulkanCommandBufferFactory::DrawCommandBufferDependencies::DrawCommandBufferDependencies(VkPipelineLayout& in_pipelineLayout, VkPipeline& in_pipeline, 
+	std::vector<VkDescriptorSet>& in_descriptorSets, int in_vertexBufferBindId, VulkanMesh& in_mesh, VulkanSwapChain& in_swapChain)
+	: m_pipelineLayout(in_pipelineLayout)
+	, m_pipeline(in_pipeline)
+	, m_descriptorSets(in_descriptorSets)
+	, m_vertexBufferBindId(in_vertexBufferBindId)
+	, m_mesh(in_mesh)
+	, m_swapChain(in_swapChain)
+{
+}
+
+
 VulkanCommandBufferFactory::VulkanCommandBufferFactory(VkDevice in_device)
 	: m_device(in_device)
 {
-
 }
 
 VkResult VulkanCommandBufferFactory::CreateCommandBuffer(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, VkCommandBuffer& out_buffer)
@@ -33,7 +45,7 @@ void VulkanCommandBufferFactory::ConstructSwapchainDepthStencilInitializationCom
 	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
 	VkResult err = vkBeginCommandBuffer(inout_buffer, &cmdBufInfo);
-	if (err) throw ProgramError(std::string("Begin swapchain's depthstencil-initialization command buffer"));
+	if (err) throw ProgramError(std::string("Begin swapchain's depthstencil-initialization command buffer: ") + vkTools::errorString(err));
 
 	// Swap chain set up on GPU
 	std::vector<VulkanSwapChain::SwapChainBuffer>& buffers = in_swapChain->GetBuffers();
@@ -48,7 +60,125 @@ void VulkanCommandBufferFactory::ConstructSwapchainDepthStencilInitializationCom
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR); // image layout: old, new
 
 	err = vkEndCommandBuffer(inout_buffer);
-	if (err) throw ProgramError(std::string("End swapchain's depthstencil-initialization command buffer"));
+	if (err) throw ProgramError(std::string("End swapchain's depthstencil-initialization command buffer: ") + vkTools::errorString(err));
+}
+
+// Constructs command buffers for drawing to target frame buffers
+void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkCommandBuffer>& inout_buffers, const std::vector<VkFramebuffer>& in_targetFrameBuffers, 
+	DrawCommandBufferDependencies& in_dependencyObjects,
+	const VkRenderPass& in_renderPass, const VkClearColorValue& in_clearColor,
+	int in_width, int in_height)
+{
+	// The following buffer lists should all be of the same size, as they represent the size of the buffers in the swap chain
+	if (inout_buffers.size() != in_targetFrameBuffers.size()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Frame buffer size not equal to command buffer size."));
+	
+	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain.GetBuffers();
+	if (inout_buffers.size() != in_dependencyObjects.m_swapChain.GetBuffersCount()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Swap chain buffer size not equal to command buffer size."));
+
+	VkCommandBufferBeginInfo cmdBufInfo = {};
+	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBufInfo.pNext = NULL;
+
+	VkClearValue clearValues[2];
+	clearValues[0].color = in_clearColor;
+	clearValues[1].depthStencil = { 1.0f, 0 };
+
+	VkRenderPassBeginInfo renderPassBeginInfo = {};
+	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassBeginInfo.pNext = NULL;
+	renderPassBeginInfo.renderPass = in_renderPass;
+	renderPassBeginInfo.renderArea.offset.x = 0;
+	renderPassBeginInfo.renderArea.offset.y = 0;
+	renderPassBeginInfo.renderArea.extent.width = in_width;
+	renderPassBeginInfo.renderArea.extent.height = in_height;
+	renderPassBeginInfo.clearValueCount = 2;
+	renderPassBeginInfo.pClearValues = clearValues;
+
+	VkResult err;
+
+	for (int32_t i = 0; i < inout_buffers.size(); ++i)
+	{
+		// Set target frame buffer
+		renderPassBeginInfo.framebuffer = in_targetFrameBuffers[i];
+		// Begin new command buffer for the target frame buffer
+		err = vkBeginCommandBuffer(inout_buffers[i], &cmdBufInfo);
+		if (err) throw ProgramError(std::string("Begin command buffer for drawing to frame buffer") + std::to_string(i) + ": " + vkTools::errorString(err));
+
+		vkCmdBeginRenderPass(inout_buffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		// Update dynamic viewport state
+		VkViewport viewport = {};
+		viewport.width = static_cast<float>(in_width);
+		viewport.height = static_cast<float>(in_height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(inout_buffers[i], 0, 1, &viewport);
+
+		// Update dynamic scissor state
+		VkRect2D scissor = {};
+		scissor.extent.width = in_width;
+		scissor.extent.height = in_height;
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+		vkCmdSetScissor(inout_buffers[i], 0, 1, &scissor);
+
+		// Bind descriptor sets describing shader binding points
+		vkCmdBindDescriptorSets(inout_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, 
+			in_dependencyObjects.m_pipelineLayout, 
+			0, static_cast<uint32_t>(in_dependencyObjects.m_descriptorSets.size()), in_dependencyObjects.m_descriptorSets.data(), 0, nullptr);
+
+		// Bind the rendering pipeline (including the shaders)
+		vkCmdBindPipeline(inout_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, in_dependencyObjects.m_pipeline);
+
+		// Draw mesh!
+		// -----------------------------------------------------------
+		VulkanMesh& mesh = in_dependencyObjects.m_mesh;
+		// Bind triangle vertices
+		VkDeviceSize offsets[1] = { 0 };
+		vkCmdBindVertexBuffers(inout_buffers[i], in_dependencyObjects.m_vertexBufferBindId, 
+			mesh.m_vertices.m_count, &mesh.m_vertices.m_buffer, offsets);
+
+		// Bind triangle indices
+		vkCmdBindIndexBuffer(inout_buffers[i], mesh.m_indices.m_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+		// Draw indexed triangle
+		vkCmdDrawIndexed(inout_buffers[i], mesh.m_indices.m_count, 
+			1, // Instance count
+			0, // Index offset
+			0, // Vertex offset (added to value from index buffer)
+			1); // Not sure about this one.. "Specifies the starting value of the internally generated instance count."
+		// -----------------------------------------------------------
+
+		vkCmdEndRenderPass(inout_buffers[i]);
+
+		// Add a present memory barrier to the end of the command buffer
+		// This will transform the frame buffer color attachment to a
+		// new layout for presenting it to the windowing system integration 
+		VkImageMemoryBarrier prePresentBarrier = {};
+		prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		prePresentBarrier.pNext = NULL;
+		prePresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		prePresentBarrier.dstAccessMask = 0;
+		prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		prePresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		prePresentBarrier.image = swapchainBuffers[i].m_image;
+
+		VkImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
+		vkCmdPipelineBarrier(
+			inout_buffers[i],
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_FLAGS_NONE,
+			0, nullptr,
+			0, nullptr,
+			1, &prePresentBarrier);
+
+		err = vkEndCommandBuffer(inout_buffers[i]);
+		if (err) throw ProgramError(std::string("End command buffer for drawing to frame buffer") + std::to_string(i) + ": " + vkTools::errorString(err));
+	}
 }
 
 VkCommandBufferAllocateInfo VulkanCommandBufferFactory::MakeInfoStruct(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, int in_bufferCount/* = 1*/)

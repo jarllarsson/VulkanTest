@@ -17,6 +17,23 @@ class VulkanMesh;
 
 struct VulkanUniformBufferPerFrame;
 
+/*!
+ * \class VulkanGraphics
+ *
+ * \brief 
+ * 
+ * Test class for learning Vulkan.
+ * Some short descriptions of various terms (filling these out while I go):
+ * 
+ * Descriptor - A vulkan base binding type. (Ie. a constant buffer or sampler) Are bound in 
+ *              blocks called descriptor sets (Which are described by descriptor set layouts: sorta like structs)
+ * 
+ *
+ * \author Jarl
+ * \date 2016
+ */
+
+
 class VulkanGraphics
 {
 public:
@@ -44,13 +61,15 @@ private:
 
 
 	// Rendering
-	void CreateVertexLayouts();
-	void CreateUniformBuffers();
-	void CreateDescriptorSetLayout();
+	void CreateTriangleProgramVertexLayouts();
+	void CreateTriangleProgramUniformBuffers();
+	void CreateTriangleProgramDescriptorSetLayout();
+	void CreateTriangleProgramDescriptorPool();
+	void CreateTriangleProgramDescriptorSet();
 
 	// TODO: Maybe move out to factory?:
 	void CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout);
-	void CreatePipelineAndLoadShaders();
+	void CreateTriangleProgramPipelineAndLoadShaders();
 
 	// Data
 
@@ -75,8 +94,6 @@ private:
 	VulkanDepthStencil m_depthStencil;
 	// Render pass for frame buffer writing
 	VkRenderPass m_renderPass;
-	// Pipeline cache
-	VkPipelineCache m_pipelineCache;
 
 	// Command buffer pool, command buffers are allocated from this
 	VkCommandPool m_commandPool;
@@ -97,7 +114,6 @@ private:
 	std::unique_ptr<VulkanDepthStencilFactory>  m_depthStencilFactory;
 	std::unique_ptr<VulkanBufferFactory>        m_bufferFactory;
 
-
 	// Geometry
 	std::shared_ptr<VulkanVertexLayout> m_simpleVertexLayout;
 	std::shared_ptr<VulkanMesh> m_triangleMesh;
@@ -107,11 +123,17 @@ private:
 	glm::vec3 m_rotation; // temp rotation vector of view 
 
 	// Pipeline layout
-	VkPipelineLayout m_pipelineLayout;
+	VkPipelineLayout m_pipelineLayout_TriangleProgram;
+	// Pipeline cache
+	VkPipelineCache m_pipelineCache;
+	// Pipeline
+	VkPipeline m_pipeline_TriangleProgram;
 
 	// Descriptor sets
-	VkDescriptorSet       m_descriptorSet;
-	VkDescriptorSetLayout m_descriptorSetLayout;
+	VkDescriptorSet       m_descriptorSetPerFrame; // All descriptors to be used per frame
+	VkDescriptorSetLayout m_descriptorSetLayoutPerFrame_TriangleProgram;
+	// Descriptor set pool
+	VkDescriptorPool      m_descriptorPool;
 
 	// Shaders created (we need to store these for proper cleanup)
 	std::vector<VkShaderModule> m_shaderModules;

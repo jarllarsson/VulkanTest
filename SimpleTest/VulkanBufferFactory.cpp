@@ -70,9 +70,9 @@ void VulkanBufferFactory::CreateUniformBufferPerFrame(VulkanUniformBufferPerFram
 		out_buffer.m_allocation.m_gpuMem))
 	{
 		// Store buffer information in the descriptor
-		out_buffer.m_allocation.m_descriptor.buffer = out_buffer.m_allocation.m_buffer;
-		out_buffer.m_allocation.m_descriptor.offset = 0;
-		out_buffer.m_allocation.m_descriptor.range = dataSize;
+		out_buffer.m_allocation.m_descriptorBufferInfo.buffer = out_buffer.m_allocation.m_buffer;
+		out_buffer.m_allocation.m_descriptorBufferInfo.offset = 0;
+		out_buffer.m_allocation.m_descriptorBufferInfo.range = dataSize;
 	}
 }
 
