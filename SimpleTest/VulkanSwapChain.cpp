@@ -188,7 +188,15 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 	}
 
 	// Destroy old swapchain if we have one
-	if (in_oldSwapChain != VK_NULL_HANDLE) vkDestroySwapchainKHR(m_device, in_oldSwapChain, nullptr);
+	if (in_oldSwapChain != VK_NULL_HANDLE)
+	{
+		OutputDebugString("Vulkan: Old swapchain exist, removing old swap chain image views\n");
+		for (auto buffer : m_buffers)
+		{
+			vkDestroyImageView(m_device, buffer.m_imageView, nullptr);
+		}
+		vkDestroySwapchainKHR(m_device, in_oldSwapChain, nullptr);
+	}
 }
 
 

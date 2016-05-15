@@ -25,10 +25,12 @@
 #include "VulkanUniformBufferPerFrame.h"
 
 
-#define ENABLE_VALIDATION false // set to true to enable debug layer
+#define ENABLE_VALIDATION false // set to true to enable debug layer (requires LunarG SDK)
+//#define USE_GLSL
 
 // Binding IDs
 #define VERTEX_BUFFER_BIND_ID 0
+
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
 	: m_graphicsQueueIdx()
@@ -98,6 +100,11 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		&m_width, &m_height,
 		in_hInstance, in_hWnd);
 
+	if (ENABLE_VALIDATION)
+	{
+		vkDebug::setupDebugging(m_vulkanInstance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, NULL);
+	}
+
 	// Create command pool
 	err = CreateCommandPool(&m_commandPool);
 	if (err) throw ProgramError(std::string("Create command pool: ") + vkTools::errorString(err));
@@ -145,21 +152,48 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	m_triangleMesh = std::make_shared<VulkanMesh>();
 	m_bufferFactory->CreateTriangle(*m_triangleMesh.get());
 
+	// TODO: The following methods are currently specialized for a triangle example
+	// but should probably be more generalized in the future:
+	// -------------------------------------
 	// Set up a simple vertex layout for our mesh
-	CreateVertexLayouts();
+	CreateTriangleProgramVertexLayouts();
 
 	// Set up the uniform buffers
-	CreateUniformBuffers();
+	CreateTriangleProgramUniformBuffers();
 
 	// Create descriptor set layout and with that then set up a 
 	// corresponding pipeline layout and create the pipeline
-	CreateDescriptorSetLayout();
-	CreatePipelineLayout(m_descriptorSetLayout, m_pipelineLayout);
-	CreatePipelineAndLoadShaders();
+	// A descriptor set is a collection of our constant buffers/uniforms and samplers (in Vulkan these are known as descriptors).
+	// A descriptor set layout specifies what stages the descriptors are visible to.
+	// Descriptor sets are useful groups as they can be grouped based on update frequency.
+	CreateTriangleProgramDescriptorSetLayout(); // Describes the various bind stages of our descriptors
+	// The pipeline then can be seen sorta like a function taking some structs as parameters, where then the parameter types are the descriptor sets layout(s) (1 layout used here atm)
+	CreatePipelineLayout(m_descriptorSetLayoutPerFrame_TriangleProgram, m_pipelineLayout_TriangleProgram); // Create a pipeline which can handle the specified descriptor set layout
+	CreateTriangleProgramPipelineAndLoadShaders();
+	// Set up the descriptor set pool, this from where
+	CreateTriangleProgramDescriptorPool();
+	// With the pool we can now allocate the descriptors
+	CreateTriangleProgramDescriptorSet();
+	// -------------------------------------
 
-	// setupDescriptorPool();
-	// setupDescriptorSet();
-	// buildCommandBuffers();
+	// Set up a command buffer for drawing the mesh
+	std::vector<VkDescriptorSet> descriptors = { m_descriptorSetPerFrame };
+	VulkanCommandBufferFactory::DrawCommandBufferDependencies drawInfo(
+		m_pipelineLayout_TriangleProgram,
+		m_pipeline_TriangleProgram,
+		descriptors,
+		VERTEX_BUFFER_BIND_ID,
+		*m_triangleMesh.get(),
+		*m_swapChain.get()
+		);
+	VkClearColorValue clearCol = { { 0.0f, 0.0f, 1.0f, 1.0f } };
+
+	m_commandBufferFactory->ConstructDrawCommandBuffer(m_drawCommandBuffers, m_frameBuffers, 
+		drawInfo, m_renderPass, 
+		clearCol, m_width, m_height);
+
+	// When all the above is implemented we can create the render method that will be called each frame
+
 
 	// -------------------------------------------------------------------------------------------------
 	// About ConstructSwapchainDepthStencilInitializationCommandBuffer:
@@ -179,7 +213,6 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// We'll actually have to do the same with images for textures.
 	// -------------------------------------------------------------------------------------------------
 
-	// When all the above is implemented we can create the render method that will be called each frame
 }
 
 VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
@@ -205,30 +238,50 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 	// Next, set up what extensions to enable
 	if (enabledExtensions.size() > 0)
 	{
-		//  		if (ENABLE_VALIDATION)
-		//  		{
-		//  			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-		//  		}
+		if (ENABLE_VALIDATION)
+		{
+			enabledExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+		}
 		instanceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
 		instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
 	}
 
 	// Set up what debug layers to enable
-	//  	if (ENABLE_VALIDATION)
-	//  	{
-	//  		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
-	//  		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-	//  	}
+	if (ENABLE_VALIDATION)
+	{
+		instanceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount;
+		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+	}
 
 	return vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
 }
 
 void VulkanGraphics::Destroy()
 {
+	// Triangle program
+	OutputDebugString("Vulkan: Removing pipeline\n");
+	vkDestroyPipeline(m_device, m_pipeline_TriangleProgram, nullptr);
+	OutputDebugString("Vulkan: Removing pipeline layout\n");
+	vkDestroyPipelineLayout(m_device, m_pipelineLayout_TriangleProgram, nullptr);
+	OutputDebugString("Vulkan: Removing per-frame descriptor set\n");
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayoutPerFrame_TriangleProgram, nullptr);
+
+	OutputDebugString("Vulkan: Freeing mesh data\n");
+	vkDestroyBuffer(m_device, m_triangleMesh->m_vertices.m_buffer, nullptr);
+	vkFreeMemory(m_device, m_triangleMesh->m_vertices.m_gpuMem, nullptr);
+	vkDestroyBuffer(m_device, m_triangleMesh->m_indices.m_buffer, nullptr);
+	vkFreeMemory(m_device, m_triangleMesh->m_indices.m_gpuMem, nullptr);
+
+	OutputDebugString("Vulkan: Freeing uniform data\n");
+	vkDestroyBuffer(m_device, m_ubufPerFrame->m_allocation.m_buffer, nullptr);
+	vkFreeMemory(m_device, m_ubufPerFrame->m_allocation.m_gpuMem, nullptr);
+
+	// General
 	OutputDebugString("Vulkan: Removing swap chain\n");
 	m_swapChain.reset();
 
-	//TODO vkDestroyDescriptorPool(m_device, descriptorPool, nullptr);
+	OutputDebugString("Vulkan: Removing descriptor pool\n");
+	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 	OutputDebugString("Vulkan: Removing command buffers\n");
 	DestroyCommandBuffers();
 	OutputDebugString("Vulkan: Removing render pass\n");
@@ -259,6 +312,10 @@ void VulkanGraphics::Destroy()
 	vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 	OutputDebugString("Vulkan: Removing device object\n");
 	vkDestroyDevice(m_device, nullptr);
+	if (ENABLE_VALIDATION)
+	{
+		vkDebug::freeDebugCallback(m_vulkanInstance);
+	}
 	OutputDebugString("Vulkan: Removing instance object\n");
 	vkDestroyInstance(m_vulkanInstance, nullptr);
 }
@@ -341,11 +398,11 @@ VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDev
 		deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledExtensions.size();
 		deviceCreateInfo.ppEnabledExtensionNames = enabledExtensions.data();
 	}
-	// 	if (ENABLE_VALIDATION)
-	// 	{
-	// 		deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
-	// 		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
-	// 	}
+	if (ENABLE_VALIDATION)
+	{
+		deviceCreateInfo.enabledLayerCount = vkDebug::validationLayerCount; // todo : validation layer names
+		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
+	}
 
 		/*
 		In Vulkan you can set several queues into the VkDeviceCreateInfo. With correct queuecount.
@@ -495,7 +552,7 @@ VkDescriptorSetLayoutCreateInfo VulkanGraphics::CreateDescriptorSetLayoutCreateI
 	return descriptorSetLayoutCreateInfo;
 }
 
-void VulkanGraphics::CreateVertexLayouts()
+void VulkanGraphics::CreateTriangleProgramVertexLayouts()
 {
 	m_simpleVertexLayout = std::make_shared<VulkanVertexLayout>();
 	VulkanVertexLayout& vertices = *m_simpleVertexLayout.get();
@@ -520,7 +577,7 @@ void VulkanGraphics::CreateVertexLayouts()
 
 }
 
-void VulkanGraphics::CreateUniformBuffers()
+void VulkanGraphics::CreateTriangleProgramUniformBuffers()
 {
 	// Per frame buffer
 	// --------------------------------------------------------------------------------------------------------
@@ -543,7 +600,7 @@ void VulkanGraphics::CreateUniformBuffers()
 	// TODO: other buffers based on how often they're updated
 }
 
-void VulkanGraphics::CreateDescriptorSetLayout()
+void VulkanGraphics::CreateTriangleProgramDescriptorSetLayout()
 {
 	// Setup the descriptor's layout (TODO: Create factory for this if we need more?)
 	// A description of what shader stages the uniform buffers (and image sampler) are bound to.
@@ -558,8 +615,63 @@ void VulkanGraphics::CreateDescriptorSetLayout()
 	};
 	VkDescriptorSetLayoutCreateInfo descriptorLayout = CreateDescriptorSetLayoutCreateInfo(setLayoutBindings);
 
-	VkResult err = vkCreateDescriptorSetLayout(m_device, &descriptorLayout, NULL, &m_descriptorSetLayout);
+	VkResult err = vkCreateDescriptorSetLayout(m_device, &descriptorLayout, NULL, &m_descriptorSetLayoutPerFrame_TriangleProgram);
 	if(err) throw ProgramError(std::string("Create descriptor set layout: ") + vkTools::errorString(err));
+}
+
+void VulkanGraphics::CreateTriangleProgramDescriptorPool()
+{
+	// Max requested descriptors per type:
+	VkDescriptorPoolSize typeCounts[1];
+	// We're currently only using 1 descriptor type (a uniform buffer)
+	// We will only request this descriptor once
+	typeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	typeCounts[0].descriptorCount = 1;
+	// If we add more possible types, we need to increase the size of typeCounts
+	// and specify the additional types.
+	// E.g. for two combined image samplers :
+	// typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	// typeCounts[1].descriptorCount = 2;
+
+	// Create global descriptor pool
+	// We could have one pool per thread to allow for per thread allocation of descriptors
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = NULL;
+	descriptorPoolCreateInfo.poolSizeCount = 1;
+	descriptorPoolCreateInfo.pPoolSizes = typeCounts;
+	descriptorPoolCreateInfo.maxSets = 1; // The max number of descriptor sets that can be created. (Requesting more results in an error)
+
+	VkResult err = vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool);
+	if (err) throw ProgramError(std::string("Create descriptor pool: ") + vkTools::errorString(err));
+}
+
+void VulkanGraphics::CreateTriangleProgramDescriptorSet()
+{
+	// Update descriptor sets determining the shader binding points
+	// For every binding point used in a shader there needs to be one
+	// descriptor set matching that binding point
+	VkWriteDescriptorSet writeDescriptorSet = {};
+
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = m_descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &m_descriptorSetLayoutPerFrame_TriangleProgram;
+
+	VkResult err = vkAllocateDescriptorSets(m_device, &allocInfo, &m_descriptorSetPerFrame);
+	if (err) throw ProgramError(std::string("Allocate descriptor set: ") + vkTools::errorString(err));
+
+	// Binding 0 : Uniform buffer
+	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSet.dstSet = m_descriptorSetPerFrame; // TODO: Take parameter
+	writeDescriptorSet.descriptorCount = 1; // TODO: Get number of descriptors from set (wrap in in struct containing count?)
+	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; // TODO: Possible to retrieve this from layout to avoid having to state this twice? Wrap layout in struct with type info?
+	writeDescriptorSet.pBufferInfo = &m_ubufPerFrame->m_allocation.m_descriptorBufferInfo; // TODO: Take buffer object as input param?
+	// Binds this uniform buffer to binding point 0
+	writeDescriptorSet.dstBinding = 0;
+
+	vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
 }
 
 void VulkanGraphics::CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout)
@@ -579,7 +691,7 @@ void VulkanGraphics::CreatePipelineLayout(const VkDescriptorSetLayout& in_descri
 	if (err) throw ProgramError(std::string("Create pipeline layout: ") + vkTools::errorString(err));
 }
 
-void VulkanGraphics::CreatePipelineAndLoadShaders()
+void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 {
 	// Create the pipeline for rendering, we create a pipeline containing all the states
 	// that defines it, instead of using a state machine and change during run-time.
@@ -594,7 +706,7 @@ void VulkanGraphics::CreatePipelineAndLoadShaders()
 	VkResult err;
 
 	pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineCreateInfo.layout = m_pipelineLayout; // previously created pipeline
+	pipelineCreateInfo.layout = m_pipelineLayout_TriangleProgram; // layout used for pipeline
 	pipelineCreateInfo.renderPass = m_renderPass; // renderpass we created, attach to this pipeline
 
 	// Vertex topology setting (triangle lists)
@@ -637,7 +749,7 @@ void VulkanGraphics::CreatePipelineAndLoadShaders()
 	dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
-	dynamicStateCreateInfo.dynamicStateCount = dynamicStates.size();
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 
 	// Depth and stencil states (depth write, depth test, depth compare <=, no stencil)
 	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
@@ -662,8 +774,8 @@ void VulkanGraphics::CreatePipelineAndLoadShaders()
 	VkPipelineShaderStageCreateInfo shaderStagesCreateInfo[2] = { {},{} };
 
 #ifdef USE_GLSL
-	shaderStagesCreateInfo[0] = VulkanShaderLoader::LoadShaderGLSL("./../shaders/_test/test.vert", "main", m_device, VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStagesCreateInfo[1] = VulkanShaderLoader::LoadShaderGLSL("./../shaders/_test/test.frag", "main", m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStagesCreateInfo[0] = VulkanShaderLoader::LoadShaderGLSL("./../shaders/triangle.vert", "main", m_device, VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStagesCreateInfo[1] = VulkanShaderLoader::LoadShaderGLSL("./../shaders/triangle.frag", "main", m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
 #else
 	shaderStagesCreateInfo[0] = VulkanShaderLoader::LoadShaderSPIRV("./../shaders/triangle.vert.spv", "main", m_device, VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStagesCreateInfo[1] = VulkanShaderLoader::LoadShaderSPIRV("./../shaders/triangle.frag.spv", "main", m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -678,9 +790,9 @@ void VulkanGraphics::CreatePipelineAndLoadShaders()
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = NULL;
-	vertexInputStateCreateInfo.vertexBindingDescriptionCount = m_simpleVertexLayout->m_bindingDescriptions.size();
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(m_simpleVertexLayout->m_bindingDescriptions.size());
 	vertexInputStateCreateInfo.pVertexBindingDescriptions = m_simpleVertexLayout->m_bindingDescriptions.data();
-	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = m_simpleVertexLayout->m_attributeDescriptions.size();
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(m_simpleVertexLayout->m_attributeDescriptions.size());
 	vertexInputStateCreateInfo.pVertexAttributeDescriptions = m_simpleVertexLayout->m_attributeDescriptions.data();
 
 	// Assign all the states create infos to the main pipeline create info
@@ -695,4 +807,23 @@ void VulkanGraphics::CreatePipelineAndLoadShaders()
 	pipelineCreateInfo.stageCount = 2; // vertex and fragment shader stages
 	pipelineCreateInfo.renderPass = m_renderPass;
 	pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+
+	// Create the pipeline
+	err = vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineCreateInfo, nullptr, &m_pipeline_TriangleProgram);
+	if (err)
+	{
+		if (err == -1000012000)
+		{
+			// Hardcoded for now:
+			// see http://developer.download.nvidia.com/assets/gameworks/downloads/secure/Vulkan_Beta_Drivers/VK_NV_glsl_shader.txt?autho=1463334899_30ddfca4ebd31a43eeefc10957d34f6f&file=VK_NV_glsl_shader.txt
+			throw ProgramError(std::string("Create graphics pipeline: VK_ERROR_INVALID_SHADER_NV\nOne or more shaders failed to compile or link. More details are\nreported back to the application via VK_EXT_debug_report\nif enabled."));
+			// If any shader stage fails to compile VK_ERROR_INVALID_SHADER_NV
+			// will be generated and the compile log will be reported back to the
+			// application by VK_EXT_debug_report if enabled.
+		}
+		else
+		{
+			throw ProgramError(std::string("Create graphics pipeline: ") + vkTools::errorString(err));
+		}
+	}
 }
