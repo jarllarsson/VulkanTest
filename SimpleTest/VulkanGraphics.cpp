@@ -25,7 +25,7 @@
 #include "VulkanUniformBufferPerFrame.h"
 
 
-#define ENABLE_VALIDATION false // set to true to enable debug layer (requires LunarG SDK)
+#define ENABLE_VALIDATION true // set to true to enable debug layer (requires LunarG SDK)
 //#define USE_GLSL
 
 // Binding IDs

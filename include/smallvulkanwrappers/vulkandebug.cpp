@@ -3,18 +3,19 @@
 
 namespace vkDebug
 {
-	int validationLayerCount = 9;
+	int validationLayerCount = 1;
 	const char *validationLayerNames[] = 
 	{
-		"VK_LAYER_LUNARG_threading",
-		"VK_LAYER_LUNARG_mem_tracker",
-		"VK_LAYER_LUNARG_object_tracker",
-		"VK_LAYER_LUNARG_draw_state",
-		"VK_LAYER_LUNARG_param_checker",
-		"VK_LAYER_LUNARG_swapchain",
-		"VK_LAYER_LUNARG_device_limits",
-		"VK_LAYER_LUNARG_image",
-		"VK_LAYER_GOOGLE_unique_objects",
+		"VK_LAYER_LUNARG_standard_validation"
+		//"VK_LAYER_GOOGLE_threading",
+		//"VK_LAYER_LUNARG_mem_tracker",
+		//"VK_LAYER_LUNARG_object_tracker",
+		//"VK_LAYER_LUNARG_draw_state",
+		//"VK_LAYER_LUNARG_param_checker",
+		//"VK_LAYER_LUNARG_swapchain",
+		//"VK_LAYER_LUNARG_device_limits",
+		//"VK_LAYER_LUNARG_image",
+		//"VK_LAYER_GOOGLE_unique_objects",
 	};
 
 	PFN_vkCreateDebugReportCallbackEXT CreateDebugReportCallback;

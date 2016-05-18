@@ -28,7 +28,7 @@ VkResult VulkanCommandBufferFactory::CreateCommandBuffer(VkCommandPool in_comman
 	return vkAllocateCommandBuffers(m_device, &createInfo, &out_buffer);
 }
 
-VkResult VulkanCommandBufferFactory::CreateCommandBuffers(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, std::vector<VkCommandBuffer> out_buffers)
+VkResult VulkanCommandBufferFactory::CreateCommandBuffers(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, std::vector<VkCommandBuffer>& out_buffers)
 {
 	VkCommandBufferAllocateInfo createInfo = MakeInfoStruct(in_commandPool, in_level, static_cast<int>(out_buffers.size()));
 	return vkAllocateCommandBuffers(m_device, &createInfo, out_buffers.data());
@@ -56,8 +56,8 @@ void VulkanCommandBufferFactory::ConstructSwapchainDepthStencilInitializationCom
 	}
 
 	// Depth stencil set up on GPU
-	AddImageLayoutChangeToCommandBuffer(inout_buffer, in_depthStencil.m_image, VK_IMAGE_ASPECT_COLOR_BIT,
-		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR); // image layout: old, new
+	AddImageLayoutChangeToCommandBuffer(inout_buffer, in_depthStencil.m_image, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL); // image layout: old, new
 
 	err = vkEndCommandBuffer(inout_buffer);
 	if (err) throw ProgramError(std::string("End swapchain's depthstencil-initialization command buffer: ") + vkTools::errorString(err));

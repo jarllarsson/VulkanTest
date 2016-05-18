@@ -2,6 +2,28 @@
 #include "vulkan/vulkan.h"
 #include <vector>
 
+
+// Macro to get a procedure address based on a vulkan instance
+#define GET_INSTANCE_PROC_ADDR(inst, entrypoint)                        \
+{                                                                       \
+    fp##entrypoint = (PFN_vk##entrypoint) vkGetInstanceProcAddr(inst, "vk"#entrypoint); \
+    if (fp##entrypoint == NULL)                                         \
+	{																    \
+        exit(1);                                                        \
+    }                                                                   \
+}
+
+// Macro to get a procedure address based on a vulkan device
+#define GET_DEVICE_PROC_ADDR(dev, entrypoint)                           \
+{                                                                       \
+    fp##entrypoint = (PFN_vk##entrypoint) vkGetDeviceProcAddr(dev, "vk"#entrypoint);   \
+    if (fp##entrypoint == NULL)                                         \
+	{																    \
+        exit(1);                                                        \
+    }                                                                   \
+}
+
+
 class VulkanSwapChain
 {
 public:
@@ -43,9 +65,18 @@ private:
 	VkSwapchainKHR  m_swapChain;
 	std::vector<SwapChainBuffer> m_buffers; // The buffers we render to and flip between
 
-	// Index of the queue capable of graphics and presenting
-	uint32_t m_queueNodeIndex = UINT32_MAX;
-
 	VkFormat        m_colorFormat;
 	VkColorSpaceKHR m_colorSpace;
+
+
+	// Function pointers
+	PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR;
+	PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR fpGetPhysicalDeviceSurfaceCapabilitiesKHR;
+	PFN_vkGetPhysicalDeviceSurfaceFormatsKHR fpGetPhysicalDeviceSurfaceFormatsKHR;
+	PFN_vkGetPhysicalDeviceSurfacePresentModesKHR fpGetPhysicalDeviceSurfacePresentModesKHR;
+	PFN_vkCreateSwapchainKHR fpCreateSwapchainKHR;
+	PFN_vkDestroySwapchainKHR fpDestroySwapchainKHR;
+	PFN_vkGetSwapchainImagesKHR fpGetSwapchainImagesKHR;
+	PFN_vkAcquireNextImageKHR fpAcquireNextImageKHR;
+	PFN_vkQueuePresentKHR fpQueuePresentKHR;
 };

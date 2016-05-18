@@ -16,7 +16,15 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 {
 	VkResult err;
 
-	// Only windows for now
+	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceSupportKHR);
+	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceCapabilitiesKHR);
+	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceFormatsKHR);
+	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfacePresentModesKHR);
+	GET_DEVICE_PROC_ADDR(m_device, CreateSwapchainKHR);
+	GET_DEVICE_PROC_ADDR(m_device, DestroySwapchainKHR);
+	GET_DEVICE_PROC_ADDR(m_device, GetSwapchainImagesKHR);
+	GET_DEVICE_PROC_ADDR(m_device, AcquireNextImageKHR);
+	GET_DEVICE_PROC_ADDR(m_device, QueuePresentKHR);
 
 	// Create surface
 #ifdef _WIN32
@@ -26,7 +34,18 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 	surfaceCreateInfo.hwnd = reinterpret_cast<HWND>(in_platformWindow);
 	err = vkCreateWin32SurfaceKHR(in_vulkanInstance, &surfaceCreateInfo, nullptr, &m_surface);
 #else
-	throw ProgramError("Swap chain only implemented for Windows.");
+#ifdef __ANDROID__
+	VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.window = window;
+	err = vkCreateAndroidSurfaceKHR(instance, &surfaceCreateInfo, NULL, &surface);
+#else
+	VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.connection = connection;
+	surfaceCreateInfo.window = window;
+	err = vkCreateXcbSurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface);
+#endif
 #endif
 	if (err)
 	{
@@ -35,10 +54,10 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 
 	// Get list of supported surface formats
 	uint32_t formatCount = 0;
-	err = vkGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, NULL);
+	err = fpGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, NULL);
 	if (err) throw ProgramError(std::string("Error when querying surface format count: ") + vkTools::errorString(err));
 	std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
-	err = vkGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, surfaceFormats.data());
+	err = fpGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, surfaceFormats.data());
 	if (err) throw ProgramError(std::string("Error when querying surface formats: ") + vkTools::errorString(err));
 
 	if (formatCount == 1 && surfaceFormats[0].format == VK_FORMAT_UNDEFINED)
@@ -70,7 +89,7 @@ VulkanSwapChain::~VulkanSwapChain()
 		vkDestroyImageView(m_device, buffer.m_imageView, nullptr);
 	}
 	OutputDebugString("Vulkan: Removing swap chain object's SwapchainKHR\n");
-	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+	fpDestroySwapchainKHR(m_device, m_swapChain, nullptr);
 	OutputDebugString("Vulkan: Removing swap chain object's SurfaceKHR\n");
 	vkDestroySurfaceKHR(m_vulkanInstance, m_surface, nullptr);
 }
@@ -103,15 +122,15 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 
 	// Get physical device surface properties and formats
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
-	err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(in_physicalDevice, m_surface, &surfaceCapabilities);
+	err = fpGetPhysicalDeviceSurfaceCapabilitiesKHR(in_physicalDevice, m_surface, &surfaceCapabilities);
 	if (err) throw ProgramError(std::string("Error when querying surface capabilities: ") + vkTools::errorString(err));
 
 	// Get the available present modes on the GPU
 	uint32_t presentModeCount;
-	err = vkGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, NULL);
+	err = fpGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, NULL);
 	if (err) throw ProgramError(std::string("Error when querying surface present mode count: ") + vkTools::errorString(err));
 	std::vector<VkPresentModeKHR> supportedPresentModes(presentModeCount);
-	err = vkGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, supportedPresentModes.data());
+	err = fpGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, supportedPresentModes.data());
 	if (err) throw ProgramError(std::string("Error when querying surface present modes: ") + vkTools::errorString(err));
 
 	// Setup surface extents
@@ -181,7 +200,7 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 	createInfo.clipped = true; // allow clip pixels
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // opaque, no alpha
 
-	err = vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapChain);
+	err = fpCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapChain);
 	if (err)
 	{
 		throw ProgramError(std::string("Error trying to construct swap chain object: ") + vkTools::errorString(err));
@@ -195,7 +214,7 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 		{
 			vkDestroyImageView(m_device, buffer.m_imageView, nullptr);
 		}
-		vkDestroySwapchainKHR(m_device, in_oldSwapChain, nullptr);
+		fpDestroySwapchainKHR(m_device, in_oldSwapChain, nullptr);
 	}
 }
 
