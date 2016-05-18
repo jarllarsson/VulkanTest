@@ -41,6 +41,8 @@ public:
 
 
 
+
+
 	// Constructs
 	void ConstructSwapchainDepthStencilInitializationCommandBuffer(VkCommandBuffer& inout_buffer, 
 		std::shared_ptr<VulkanSwapChain> in_swapChain, VulkanDepthStencil& in_depthStencil);

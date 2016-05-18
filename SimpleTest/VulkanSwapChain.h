@@ -8,7 +8,7 @@
 {                                                                       \
     fp##entrypoint = (PFN_vk##entrypoint) vkGetInstanceProcAddr(inst, "vk"#entrypoint); \
     if (fp##entrypoint == NULL)                                         \
-	{																    \
+	{                                                                   \
         exit(1);                                                        \
     }                                                                   \
 }
@@ -18,7 +18,7 @@
 {                                                                       \
     fp##entrypoint = (PFN_vk##entrypoint) vkGetDeviceProcAddr(dev, "vk"#entrypoint);   \
     if (fp##entrypoint == NULL)                                         \
-	{																    \
+	{                                                                   \
         exit(1);                                                        \
     }                                                                   \
 }
