@@ -52,6 +52,7 @@ public:
 
 	// Present current image to specified queue
 	VkResult Present(VkQueue in_queue, uint32_t in_currentBufferIdx);
+	VkResult Present(VkQueue in_queue, uint32_t in_currentBufferIdx, VkSemaphore in_waitSemaphore = VK_NULL_HANDLE);
 
 	int      GetBuffersCount() const;
 

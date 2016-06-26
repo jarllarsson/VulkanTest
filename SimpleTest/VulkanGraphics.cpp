@@ -34,7 +34,8 @@
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
 	: m_graphicsQueueIdx()
-	, m_postPresentCommandBuffer(VK_NULL_HANDLE)
+	, m_postPresentCommandBuffers(VK_NULL_HANDLE)
+	, m_currentFrameBufferIdx(0)
 	, m_width(in_width)
 	, m_height(in_height)
 {
@@ -47,6 +48,15 @@ VulkanGraphics::~VulkanGraphics()
 }
 
 
+
+void VulkanGraphics::Render()
+{
+	if (!m_device)
+		return;
+	vkDeviceWaitIdle(m_device);
+	Draw();
+	vkDeviceWaitIdle(m_device);
+}
 
 // Main initialization of Vulkan stuff
 void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
@@ -110,7 +120,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	if (err) throw ProgramError(std::string("Create command pool: ") + vkTools::errorString(err));
 
 	// Create command buffers for each frame image buffer in the swap chain, for rendering
-	CreateRenderCommandBuffers();
+	AllocateRenderCommandBuffers();
 
 	// Setup depth stencil
 	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_depthStencil);
@@ -118,7 +128,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Command buffer for initializing the depth stencil and swap chain 
 	// images to the right format on the gpu
 	VkCommandBuffer swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
-	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapchainDepthStencilSetupCommandBuffer);
+	err = m_commandBufferFactory->AllocateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapchainDepthStencilSetupCommandBuffer);
 	if (err) throw ProgramError(std::string("Create a setup command buffer for the swapchain and depth stencil: ") + vkTools::errorString(err));
 	m_commandBufferFactory->ConstructSwapchainDepthStencilInitializationCommandBuffer(
 		swapchainDepthStencilSetupCommandBuffer,
@@ -142,11 +152,14 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	vkFreeCommandBuffers(m_device, m_commandPool, 1, &swapchainDepthStencilSetupCommandBuffer);
 	swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
 
-	// Note: Other command buffers if needed should then be created >here<
+	// Note: Other command buffers if needed should then be allocated >here<
 
 	// ================================================
 	// 3. Prepare application specific usage of Vulkan
 	// ================================================
+
+	// Create semaphores
+	CreateSemaphores();
 
 	// Create triangle mesh
 	m_triangleMesh = std::make_shared<VulkanMesh>();
@@ -187,13 +200,15 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		*m_swapChain.get()
 		);
 	VkClearColorValue clearCol = { { 0.0f, 0.0f, 1.0f, 1.0f } };
-
 	m_commandBufferFactory->ConstructDrawCommandBuffer(m_drawCommandBuffers, m_frameBuffers, 
 		drawInfo, m_renderPass, 
 		clearCol, m_width, m_height);
 
-	// When all the above is implemented we can create the render method that will be called each frame
+	// Also set up commandbuffers for post-present behaviour (resetting image layouts for instance)
+	m_commandBufferFactory->ConstructPostPresentCommandBuffer(m_postPresentCommandBuffers, drawInfo);
 
+
+	// When all the above is implemented we can create the render method that will be called each frame
 
 	// -------------------------------------------------------------------------------------------------
 	// About ConstructSwapchainDepthStencilInitializationCommandBuffer:
@@ -272,6 +287,10 @@ void VulkanGraphics::Destroy()
 	vkDestroyBuffer(m_device, m_triangleMesh->m_indices.m_buffer, nullptr);
 	vkFreeMemory(m_device, m_triangleMesh->m_indices.m_gpuMem, nullptr);
 
+	OutputDebugString("Vulkan: Destroying semaphores\n");
+	vkDestroySemaphore(m_device, m_presentComplete, nullptr);
+	vkDestroySemaphore(m_device, m_renderComplete, nullptr);
+
 	OutputDebugString("Vulkan: Freeing uniform data\n");
 	vkDestroyBuffer(m_device, m_ubufPerFrame->m_allocation.m_buffer, nullptr);
 	vkFreeMemory(m_device, m_ubufPerFrame->m_allocation.m_gpuMem, nullptr);
@@ -328,7 +347,7 @@ void VulkanGraphics::DestroyCommandBuffers()
 	else
 		OutputDebugString("Vulkan: Warning, can't remove draw buffer as it has not been created\n");
 	OutputDebugString("Vulkan: Removing draw post present command buffers\n");
-	vkFreeCommandBuffers(m_device, m_commandPool, 1, &m_postPresentCommandBuffer);
+	vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_postPresentCommandBuffers.size()), m_postPresentCommandBuffers.data());
 }
 
 
@@ -449,7 +468,7 @@ VkResult VulkanGraphics::CreateCommandPool(VkCommandPool* out_commandPool)
 	return vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, out_commandPool);
 }
 
-void VulkanGraphics::CreateRenderCommandBuffers()
+void VulkanGraphics::AllocateRenderCommandBuffers()
 {
 	// Create one command buffer per image buffer 
 	// in the swap chain
@@ -461,11 +480,12 @@ void VulkanGraphics::CreateRenderCommandBuffers()
 	uint32_t count = static_cast<uint32_t>(m_swapChain->GetBuffersCount());
 
 	m_drawCommandBuffers.resize(count);
-	VkResult err = m_commandBufferFactory->CreateCommandBuffers(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_drawCommandBuffers);
+	VkResult err = m_commandBufferFactory->AllocateCommandBuffers(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_drawCommandBuffers);
 	if (err) throw ProgramError(std::string("Allocate command buffers from pool: ") + vkTools::errorString(err));
 
-	// Create a post-present command buffer, it is used to restore the image layout after presenting
-	err = m_commandBufferFactory->CreateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_postPresentCommandBuffer);
+	// Create post-present command buffers, they are used to restore the image layout after presenting
+	m_postPresentCommandBuffers.resize(count);
+	err = m_commandBufferFactory->AllocateCommandBuffers(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_postPresentCommandBuffers);
 	if (err) throw ProgramError(std::string("Allocate post-present command buffer from pool: ") + vkTools::errorString(err));
 }
 
@@ -528,6 +548,19 @@ void VulkanGraphics::CreateFrameBuffers()
 		VkResult err = vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]);
 		if (err) throw ProgramError(std::string("Create frame buffer[") + std::to_string(i) + "] :" + vkTools::errorString(err));
 	}
+}
+
+void VulkanGraphics::CreateSemaphores()
+{
+	VkResult err;
+	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreCreateInfo.pNext = NULL;
+
+	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_presentComplete);
+	if (err) throw ProgramError(std::string("Creating wait semaphore for present-complete: ") + vkTools::errorString(err));
+	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderComplete);
+	if (err) throw ProgramError(std::string("Creating signal semaphore for render-complete: ") + vkTools::errorString(err));
 }
 
 VkDescriptorSetLayoutBinding VulkanGraphics::CreateDescriptorSetLayoutBinding(uint32_t in_descriptorBindingId,
@@ -672,6 +705,55 @@ void VulkanGraphics::CreateTriangleProgramDescriptorSet()
 	writeDescriptorSet.dstBinding = 0;
 
 	vkUpdateDescriptorSets(m_device, 1, &writeDescriptorSet, 0, nullptr);
+}
+
+void VulkanGraphics::Draw()
+{
+	VkResult err;
+
+	// Get next swap chain image (backbuffer flip)
+	err = m_swapChain->NextImage(m_presentComplete, &m_currentFrameBufferIdx);
+	assert(!err);
+
+
+	// Submit the post-present command buffer
+	// Submit to the queue
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &m_postPresentCommandBuffers[m_currentFrameBufferIdx]; // use post present commandbuffer for current frame buffer
+
+	err = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
+	assert(!err);
+
+	err = vkQueueWaitIdle(m_queue); // wait until done
+	assert(!err);
+
+	// Submit info for draw
+	// Contains list of command buffers and semaphores
+	// TODO: Maybe only need to do this once??
+	submitInfo = {};
+	VkPipelineStageFlags pipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pWaitDstStageMask = &pipelineStages;
+	// The wait semaphore ensures that image has been presented before new commandbuffer is submitted
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &m_presentComplete;
+	submitInfo.commandBufferCount = 1; // only have one commandbuffer atm (send along vector::data, below, if we have more than one commandbuffer)
+	submitInfo.pCommandBuffers = &m_drawCommandBuffers[m_currentFrameBufferIdx]; // use draw commandbuffer for current frame buffer
+	// The signal semaphore is used during presentation of the queue to make sure that image is rendered after
+	// all commandbuffers are submitted
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &m_renderComplete;
+
+	// Submit to Vulkan graphics queue (executes command buffers)
+	err = vkQueueSubmit(m_queue, 1, &submitInfo, 
+		VK_NULL_HANDLE); // optional fence that is signaled when all commandbuffers in this submit is done. Not needed here atm
+	assert(!err);
+
+	// Present the queue (draws image)
+	err = m_swapChain->Present(m_queue, m_currentFrameBufferIdx, m_renderComplete);
+	assert(!err);
 }
 
 void VulkanGraphics::CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout)

@@ -96,10 +96,10 @@ VulkanSwapChain::~VulkanSwapChain()
 
 VkResult VulkanSwapChain::NextImage(VkSemaphore in_semPresentIsComplete, uint32_t* inout_currentBufferIdx)
 {
-	return vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, in_semPresentIsComplete, (VkFence)nullptr, inout_currentBufferIdx);
+	return fpAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, in_semPresentIsComplete, (VkFence)nullptr, inout_currentBufferIdx);
 }
 
-VkResult VulkanSwapChain::Present(VkQueue in_queue, uint32_t in_currentBufferIdx)
+VkResult VulkanSwapChain::Present(VkQueue in_queue, uint32_t in_currentBufferIdx, VkSemaphore in_waitSemaphore /*=VK_NULL_HANDLE*/)
 {
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -107,7 +107,12 @@ VkResult VulkanSwapChain::Present(VkQueue in_queue, uint32_t in_currentBufferIdx
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &m_swapChain;
 	presentInfo.pImageIndices = &in_currentBufferIdx;
-	return vkQueuePresentKHR(in_queue, &presentInfo);
+	if (in_waitSemaphore != VK_NULL_HANDLE)
+	{
+		presentInfo.pWaitSemaphores = &in_waitSemaphore;
+		presentInfo.waitSemaphoreCount = 1;
+	}
+	return fpQueuePresentKHR(in_queue, &presentInfo);
 }
 
 int VulkanSwapChain::GetBuffersCount() const
@@ -224,12 +229,12 @@ void VulkanSwapChain::CreateBuffers()
 	VkResult err;
 
 	uint32_t imageCount;
-	err = vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, NULL);
+	err = fpGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, NULL);
 	if (err) throw ProgramError(std::string("Error when querying swap chain image count: ") + vkTools::errorString(err));
 	if (imageCount < 1) throw ProgramError(std::string("Swap chain image count less than 1: ") + vkTools::errorString(err));
 
 	std::vector<VkImage> bufferImages(imageCount);
-	err = vkGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, bufferImages.data());
+	err = fpGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, bufferImages.data());
 	if (err) throw ProgramError(std::string("Error when querying swap chain images: ") + vkTools::errorString(err));
 
 	m_buffers.resize(imageCount);

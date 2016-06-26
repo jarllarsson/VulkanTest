@@ -6,6 +6,7 @@
 int main(int argc, char* argv[])
 {
 	int width = 800, height = 600;
+	std::unique_ptr<VulkanGraphics> vulkanGraphics = nullptr;
 
 	try 
 	{
@@ -15,14 +16,18 @@ int main(int argc, char* argv[])
 		HINSTANCE hInstance;
 		HWND hWnd;
 		Wnd::GetPlatformWindowInfo(hWnd, hInstance);
-		VulkanGraphics vulkanGraphics(hWnd, hInstance, width, height);
+		vulkanGraphics = std::make_unique<VulkanGraphics>(hWnd, hInstance, width, height);
 	}
 	catch (ProgramError& e)
 	{
 		MessageBox(0, e.what(), "Error!", MB_OK);
 		return -1;
 	}
-
+	if (vulkanGraphics == nullptr)
+	{
+		MessageBox(0, "Graphics not initialized", "Error!", MB_OK);
+		return -1;
+	}
 
 	// Main loop
 	bool run = true;
@@ -39,6 +44,7 @@ int main(int argc, char* argv[])
 		// Main code
 		// ========================
 
+		vulkanGraphics->Render();
 
 		// ========================
 	}

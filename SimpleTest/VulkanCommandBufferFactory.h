@@ -35,15 +35,13 @@ public:
 
 	VulkanCommandBufferFactory(VkDevice in_device); 
 
-	// Initializations
-	VkResult CreateCommandBuffer(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, VkCommandBuffer& out_buffer);
-	VkResult CreateCommandBuffers(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, std::vector<VkCommandBuffer>& out_buffers);
+	// Allocations
+	VkResult AllocateCommandBuffer(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, VkCommandBuffer& out_buffer);
+	VkResult AllocateCommandBuffers(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, std::vector<VkCommandBuffer>& out_buffers);
 
 
 
-
-
-	// Constructs
+	// Constructs (needs allocation first)
 	void ConstructSwapchainDepthStencilInitializationCommandBuffer(VkCommandBuffer& inout_buffer, 
 		std::shared_ptr<VulkanSwapChain> in_swapChain, VulkanDepthStencil& in_depthStencil);
 
@@ -52,7 +50,7 @@ public:
 		const VkRenderPass& in_renderPass, const VkClearColorValue& in_clearColor,
 		int in_width, int in_height);
 
-	void ConstructPostPresentCommandBuffer() {/* TODO!! */ }
+	void ConstructPostPresentCommandBuffer(std::vector<VkCommandBuffer>& inout_buffers, DrawCommandBufferDependencies& in_dependencyObjects);
 
 
 private:

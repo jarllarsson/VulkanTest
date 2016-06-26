@@ -22,13 +22,13 @@ VulkanCommandBufferFactory::VulkanCommandBufferFactory(VkDevice in_device)
 {
 }
 
-VkResult VulkanCommandBufferFactory::CreateCommandBuffer(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, VkCommandBuffer& out_buffer)
+VkResult VulkanCommandBufferFactory::AllocateCommandBuffer(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, VkCommandBuffer& out_buffer)
 {
 	VkCommandBufferAllocateInfo createInfo = MakeInfoStruct(in_commandPool, in_level);
 	return vkAllocateCommandBuffers(m_device, &createInfo, &out_buffer);
 }
 
-VkResult VulkanCommandBufferFactory::CreateCommandBuffers(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, std::vector<VkCommandBuffer>& out_buffers)
+VkResult VulkanCommandBufferFactory::AllocateCommandBuffers(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, std::vector<VkCommandBuffer>& out_buffers)
 {
 	VkCommandBufferAllocateInfo createInfo = MakeInfoStruct(in_commandPool, in_level, static_cast<int>(out_buffers.size()));
 	return vkAllocateCommandBuffers(m_device, &createInfo, out_buffers.data());
@@ -70,10 +70,10 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 	int in_width, int in_height)
 {
 	// The following buffer lists should all be of the same size, as they represent the size of the buffers in the swap chain
-	if (inout_buffers.size() != in_targetFrameBuffers.size()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Frame buffer size not equal to command buffer size."));
+	if (inout_buffers.size() != in_targetFrameBuffers.size()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Frame buffers count not equal to command buffers count."));
 	
 	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain.GetBuffers();
-	if (inout_buffers.size() != in_dependencyObjects.m_swapChain.GetBuffersCount()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Swap chain buffer size not equal to command buffer size."));
+	if (inout_buffers.size() != in_dependencyObjects.m_swapChain.GetBuffersCount()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Swap chain buffers count not equal to command buffers count."));
 
 	VkCommandBufferBeginInfo cmdBufInfo = {};
 	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -160,7 +160,7 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 		prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		prePresentBarrier.pNext = NULL;
 		prePresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		prePresentBarrier.dstAccessMask = 0;
+		prePresentBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 		prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -172,7 +172,7 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 		vkCmdPipelineBarrier(
 			inout_buffers[i],
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 			VK_FLAGS_NONE,
 			0, nullptr,
 			0, nullptr,
@@ -180,6 +180,52 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 
 		err = vkEndCommandBuffer(inout_buffers[i]);
 		if (err) throw ProgramError(std::string("End command buffer for drawing to frame buffer") + std::to_string(i) + ": " + vkTools::errorString(err));
+	}
+}
+
+void VulkanCommandBufferFactory::ConstructPostPresentCommandBuffer(std::vector<VkCommandBuffer>& inout_buffers, DrawCommandBufferDependencies& in_dependencyObjects)
+{
+	// Create commandbuffers for each frame buffer that resets the color attachment to its original state after presenting
+	// This is a reset of the last stage of the draw commandbuffer (see ConstructDrawCommandBuffer)
+	if (inout_buffers.size() != in_dependencyObjects.m_swapChain.GetBuffersCount()) throw ProgramError(std::string("ConstructPostPresentCommandBuffer: Swap chain buffers count not equal to command buffers count."));
+
+	VkResult err;
+	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain.GetBuffers();
+
+	VkImageMemoryBarrier postPresentBarrier = {};
+	postPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	postPresentBarrier.pNext = NULL;
+	postPresentBarrier.srcAccessMask = 0;
+	postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+	for (int32_t i = 0; i < inout_buffers.size(); ++i)
+	{
+		postPresentBarrier.image = swapchainBuffers[i].m_image; // only thing differing between creation infos
+
+		// Use dedicated command buffer from example base class for submitting the post present barrier
+		VkCommandBufferBeginInfo cmdBufInfo = {};
+		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+		err = vkBeginCommandBuffer(inout_buffers[i], &cmdBufInfo);
+		if (err) throw ProgramError(std::string("Begin command buffer for post present image layout") + std::to_string(i) + ": " + vkTools::errorString(err));
+
+		// Put post present barrier into command buffer
+		vkCmdPipelineBarrier(
+			inout_buffers[i],
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+			VK_FLAGS_NONE,
+			0, nullptr,
+			0, nullptr,
+			1, &postPresentBarrier);
+
+		err = vkEndCommandBuffer(inout_buffers[i]);
+		if (err) throw ProgramError(std::string("End command buffer for post present image layout") + std::to_string(i) + ": " + vkTools::errorString(err));
 	}
 }
 
