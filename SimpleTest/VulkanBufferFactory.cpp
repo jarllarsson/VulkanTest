@@ -119,7 +119,7 @@ bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 	{
 		// TODO: Maybe move map/unmap operations to a helper class or make a generic buffer base class that has this sort of stuff
 		void *mapped;
-		err = vkMapMemory(m_device, out_allocatedDeviceMemory, 0, in_size, 0, &mapped);
+		err = vkMapMemory(m_device, out_allocatedDeviceMemory, 0, memoryAllocationInfo.allocationSize, 0, &mapped);
 		if (err) throw ProgramError(std::string("Map data for buffer"));
 		memcpy(mapped, in_data, in_size);
 		vkUnmapMemory(m_device, out_allocatedDeviceMemory);

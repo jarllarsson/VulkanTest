@@ -135,8 +135,10 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 		VulkanMesh& mesh = in_dependencyObjects.m_mesh;
 		// Bind triangle vertices
 		VkDeviceSize offsets[1] = { 0 };
-		vkCmdBindVertexBuffers(inout_buffers[i], in_dependencyObjects.m_vertexBufferBindId, 
-			mesh.m_vertices.m_count, &mesh.m_vertices.m_buffer, offsets);
+		const uint32_t bindingCount = 1; // how many vertex buffer bindings to update
+		vkCmdBindVertexBuffers(inout_buffers[i], in_dependencyObjects.m_vertexBufferBindId,
+			bindingCount, &mesh.m_vertices.m_buffer, offsets);
+
 
 		// Bind triangle indices
 		vkCmdBindIndexBuffer(inout_buffers[i], mesh.m_indices.m_buffer, 0, VK_INDEX_TYPE_UINT32);
