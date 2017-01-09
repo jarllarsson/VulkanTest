@@ -2,14 +2,16 @@
 
 #include "vulkan/vulkan.h"
 #include <memory>
+#include "VkObj.h"
 
 class VulkanMemoryHelper;
 
 struct VulkanDepthStencil
 {
-	VkImage m_image;
-	VkDeviceMemory m_gpuMem;
-	VkImageView m_imageView;
+	VulkanDepthStencil(const VkObj<VkDevice>& in_device);
+	VkObj<VkImage> m_image;
+	VkObj<VkDeviceMemory> m_gpuMem;
+	VkObj<VkImageView> m_imageView;
 };
 
 class VulkanDepthStencilFactory

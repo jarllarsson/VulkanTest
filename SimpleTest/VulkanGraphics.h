@@ -80,16 +80,18 @@ private:
 
 
 	// Data
+	// Here VkObj wrappers are used for destroy-required Vulkan objects, 
+	// it ensures their destruction when this instance is destroyed.
 
 	// The Vulkan instance
-	VkInstance m_vulkanInstance;
-
+	VkObj<VkInstance> m_vulkanInstance;
 	// Physical device object (ie. the real gpu)
-	VkPhysicalDevice m_physicalDevice;
+	VkPhysicalDevice m_physicalDevice; // Destroyed when instance is destroyed
+
 	// Vulkan memory handler
 	std::shared_ptr<VulkanMemoryHelper> m_memory;
 	// Logical device object (the app's view of the gpu)
-	VkDevice m_device;
+	VkObj<VkDevice> m_device;
 
 	// Queue supporting graphics
 	uint32_t m_graphicsQueueIdx;
@@ -101,10 +103,10 @@ private:
 	// Depth stencil object
 	VulkanDepthStencil m_depthStencil;
 	// Render pass for frame buffer writing
-	VkRenderPass m_renderPass;
+	VkObj<VkRenderPass> m_renderPass;
 
 	// Command buffer pool, command buffers are allocated from this
-	VkCommandPool m_commandPool;
+	VkObj<VkCommandPool> m_commandPool;
 
 
 	// Command buffers for presenting, one for each frame buffer (for double buffered draw for example)
@@ -138,7 +140,7 @@ private:
 	// Pipeline layout
 	VkPipelineLayout m_pipelineLayout_TriangleProgram;
 	// Pipeline cache
-	VkPipelineCache m_pipelineCache;
+	VkObj<VkPipelineCache> m_pipelineCache;
 	// Pipeline
 	VkPipeline m_pipeline_TriangleProgram;
 

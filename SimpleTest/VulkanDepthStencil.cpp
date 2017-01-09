@@ -4,6 +4,14 @@
 #include "vulkantools.h"
 
 
+VulkanDepthStencil::VulkanDepthStencil(const VkObj<VkDevice>& in_device)
+	: m_image(in_device, vkDestroyImage)
+	, m_gpuMem(in_device, vkFreeMemory)
+	, m_imageView(in_device, vkDestroyImageView)
+{
+
+}
+
 VulkanDepthStencilFactory::VulkanDepthStencilFactory(VkDevice in_device, const std::shared_ptr<VulkanMemoryHelper> in_memory)
 	: m_device(in_device)
 	, m_memory(in_memory)
@@ -54,14 +62,14 @@ void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t 
 	VkResult err;
 
 	// Create the image
-	err = vkCreateImage(m_device, &imageCreationInfo, nullptr, &out_depthStencil.m_image);
+	err = vkCreateImage(m_device, &imageCreationInfo, nullptr, out_depthStencil.m_image.Replace());
 	if (err) throw ProgramError(std::string("Create depth stencil image: ") + vkTools::errorString(err));
 
 	// Allocate memory for the image on the gpu
 	vkGetImageMemoryRequirements(m_device, out_depthStencil.m_image, &memoryRequirements);
 	memoryAllocInfo.allocationSize = memoryRequirements.size;
 	m_memory->GetMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocInfo.memoryTypeIndex);
-	err = vkAllocateMemory(m_device, &memoryAllocInfo, nullptr, &out_depthStencil.m_gpuMem);
+	err = vkAllocateMemory(m_device, &memoryAllocInfo, nullptr, out_depthStencil.m_gpuMem.Replace());
 	if (err) throw ProgramError(std::string("Allocate depth stencil memory on GPU: ") + vkTools::errorString(err));
 
 	// Bind the image to the allocated memory
@@ -70,7 +78,7 @@ void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t 
 
 	// Set up our view to the image
 	depthStencilViewCreationInfo.image = out_depthStencil.m_image;
-	err = vkCreateImageView(m_device, &depthStencilViewCreationInfo, nullptr, &out_depthStencil.m_imageView);
+	err = vkCreateImageView(m_device, &depthStencilViewCreationInfo, nullptr, out_depthStencil.m_imageView.Replace());
 	if (err) throw ProgramError(std::string("Create depth stencil image view: ") + vkTools::errorString(err));
 }
 

@@ -7,6 +7,9 @@
 * \brief
 *
 * An auto deleter class for handling Vulkan objects.
+* Based on auto-deleter as seen on https://vulkan-tutorial.com
+*
+* TODO: Reference counting
 *
 *
 * \author Jarl
@@ -42,7 +45,6 @@ public:
 		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc)
 	: m_obj(VK_NULL_HANDLE)
 	{
-		m_obj = in_obj;
 		// Assign lambda, here also bind in_instance as ref
 		m_deleter = 
 			[&in_instance, in_deleterFunc](T obj) 
@@ -63,7 +65,6 @@ public:
 				in_deleterFunc(in_device, obj, nullptr); 
 			};
 	}
-
 
 	~VkObj()
 	{
@@ -91,7 +92,7 @@ public:
 		return &m_obj;
 	}
 
-	operator T() const 
+	operator T () const 
 	{
 		return m_obj;
 	}
@@ -106,7 +107,7 @@ public:
 	}
 
 	template<typename V>
-	bool operator==(V rhs) 
+	bool operator == (V rhs) 
 	{
 		return m_obj == T(rhs);
 	}

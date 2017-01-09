@@ -33,7 +33,13 @@
 
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
-	: m_graphicsQueueIdx()
+	: m_vulkanInstance(vkDestroyInstance)
+	, m_device(vkDestroyDevice)
+	, m_commandPool(m_device, vkDestroyCommandPool)
+	, m_pipelineCache(m_device, vkDestroyPipelineCache)
+	, m_depthStencil(m_device)
+	, m_renderPass(m_device, vkDestroyRenderPass)
+	, m_graphicsQueueIdx()
 	, m_postPresentCommandBuffers(VK_NULL_HANDLE)
 	, m_currentFrameBufferIdx(0)
 	, m_width(in_width)
@@ -67,7 +73,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	VkResult err = VK_SUCCESS;
 
 	// Create the Vulkan instance
-	err = CreateInstance(&m_vulkanInstance);
+	err = CreateInstance(m_vulkanInstance.Replace());
 	if (err) throw ProgramError(std::string("Create Vulkan instance: ") + vkTools::errorString(err));
 
 	// If requested, we enable the default validation layers for debugging
@@ -109,7 +115,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
 
 	// Create the logical device
-	err = CreateLogicalDevice(m_graphicsQueueIdx, &m_device);
+	err = CreateLogicalDevice(m_graphicsQueueIdx, m_device.Replace());
 	if (err) throw ProgramError(std::string("Create logical device: ") + vkTools::errorString(err));
 
 	// Init factories
@@ -142,7 +148,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	}
 
 	// Create command pool
-	err = CreateCommandPool(&m_commandPool);
+	err = CreateCommandPool(m_commandPool.Replace());
 	if (err) throw ProgramError(std::string("Create command pool: ") + vkTools::errorString(err));
 
 	// Create command buffers for each frame image buffer in the swap chain, for rendering
@@ -163,7 +169,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 
 	// Create the render pass
-	err = m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, m_renderPass);
+	err = m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, *m_renderPass.Replace());
 	if (err) throw ProgramError(std::string("Create render pass: ") + vkTools::errorString(err));
 
 	// Create a pipeline cache
@@ -337,8 +343,8 @@ void VulkanGraphics::Destroy()
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 	OutputDebugString("Vulkan: Removing command buffers\n");
 	DestroyCommandBuffers();
-	OutputDebugString("Vulkan: Removing render pass\n");
-	vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+	//OutputDebugString("Vulkan: Removing render pass\n");
+	//vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 
 	OutputDebugString("Vulkan: Removing frame buffers\n");
 	for (uint32_t i = 0; i < static_cast<uint32_t>(m_frameBuffers.size()); i++)
@@ -351,26 +357,26 @@ void VulkanGraphics::Destroy()
 	{
 		vkDestroyShaderModule(m_device, shaderModule, nullptr);
 	}
-	OutputDebugString("Vulkan: Removing depth stencil view\n");
-	vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
-	OutputDebugString("Vulkan: Removing depth stencil image\n");
-	vkDestroyImage(m_device, m_depthStencil.m_image, nullptr);
-	OutputDebugString("Vulkan: Freeing memory of depth stencil on the GPU\n");
-	vkFreeMemory(m_device, m_depthStencil.m_gpuMem, nullptr);
+	//OutputDebugString("Vulkan: Removing depth stencil view\n");
+	//vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
+	//OutputDebugString("Vulkan: Removing depth stencil image\n");
+	//vkDestroyImage(m_device, m_depthStencil.m_image, nullptr);
+	//OutputDebugString("Vulkan: Freeing memory of depth stencil on the GPU\n");
+	//vkFreeMemory(m_device, m_depthStencil.m_gpuMem, nullptr);
 
-	OutputDebugString("Vulkan: Removing pipeline cache\n");
-	vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
+	//OutputDebugString("Vulkan: Removing pipeline cache\n");
+	//vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
 
-	OutputDebugString("Vulkan: Removing command pool\n");
-	vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-	OutputDebugString("Vulkan: Removing device object\n");
-	vkDestroyDevice(m_device, nullptr);
+	//OutputDebugString("Vulkan: Removing command pool\n");
+	//vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+	//OutputDebugString("Vulkan: Removing device object\n");
+	//vkDestroyDevice(m_device, nullptr);
 	if (ENABLE_VALIDATION)
 	{
 		vkDebug::freeDebugCallback(m_vulkanInstance);
 	}
-	OutputDebugString("Vulkan: Removing instance object\n");
-	vkDestroyInstance(m_vulkanInstance, nullptr);
+	//OutputDebugString("Vulkan: Removing instance object\n");
+	//vkDestroyInstance(m_vulkanInstance, nullptr);
 }
 
 void VulkanGraphics::DestroyCommandBuffers()
@@ -556,7 +562,7 @@ VkResult VulkanGraphics::CreatePipelineCache()
 {
 	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
 	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-	return vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache);
+	return vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, m_pipelineCache.Replace());
 }
 
 void VulkanGraphics::CreateFrameBuffers()
