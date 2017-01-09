@@ -36,8 +36,8 @@ void VulkanBufferFactory::CreateTriangle(VulkanMesh& out_mesh) const
 	if (CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		vertexBufferByteSize,
 		reinterpret_cast<void*>(vertexData.data()),
-		out_mesh.m_vertices.m_buffer,
-		out_mesh.m_vertices.m_gpuMem))
+		*out_mesh.m_vertices.m_buffer.Replace(),
+		*out_mesh.m_vertices.m_gpuMem.Replace()))
 	{
 		out_mesh.m_vertices.m_count = vertexCount;
 	}
@@ -46,8 +46,8 @@ void VulkanBufferFactory::CreateTriangle(VulkanMesh& out_mesh) const
 	if (CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		indexBufferByteSize,
 		reinterpret_cast<void*>(indexData.data()),
-		out_mesh.m_indices.m_buffer,
-		out_mesh.m_indices.m_gpuMem))
+		*out_mesh.m_indices.m_buffer.Replace(),
+		*out_mesh.m_indices.m_gpuMem.Replace()))
 	{
 		out_mesh.m_indices.m_count = indexCount;
 	}
@@ -66,8 +66,8 @@ void VulkanBufferFactory::CreateUniformBufferPerFrame(VulkanUniformBufferPerFram
 	if (CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		dataSize,
 		reinterpret_cast<void*>(&out_buffer.m_data),
-		out_buffer.m_allocation.m_buffer,
-		out_buffer.m_allocation.m_gpuMem))
+		*out_buffer.m_allocation.m_buffer.Replace(),
+		*out_buffer.m_allocation.m_gpuMem.Replace()))
 	{
 		// Store buffer information in the descriptor
 		out_buffer.m_allocation.m_descriptorBufferInfo.buffer = out_buffer.m_allocation.m_buffer;

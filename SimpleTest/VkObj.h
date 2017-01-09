@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include "DebugPrint.h"
 
 /*!
 * \class VkPtr
@@ -29,8 +30,8 @@ public:
 	// nullptr hardcoded for those atm
 
 	// Creation with only object
-	VkObj(std::function<void(T, VkAllocationCallbacks*)> in_deleterFunc)
-	: m_obj(VK_NULL_HANDLE)
+	VkObj(std::function<void(T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+	: m_obj(in_init)
 	{
 		// Assign a lambda to the deleter functor
 		// that calls the in_deleterFunc functor (capture by value in capture clause [] )
@@ -42,8 +43,8 @@ public:
 	}
 
 	VkObj(const VkObj<VkInstance>& in_instance,
-		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc)
-	: m_obj(VK_NULL_HANDLE)
+		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+	: m_obj(in_init)
 	{
 		// Assign lambda, here also bind in_instance as ref
 		m_deleter = 
@@ -55,8 +56,8 @@ public:
 
 
 	VkObj(const VkObj<VkDevice>& in_device,
-		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc)
-	: m_obj(VK_NULL_HANDLE)
+		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+	: m_obj(in_init)
 	{
 		// Assign lambda, here also bind in_device as ref
 		m_deleter = 
@@ -66,8 +67,36 @@ public:
 			};
 	}
 
+#ifdef _DEBUG
+	// Special constructor that also stores a debug name
+	VkObj(const VkObj<VkDevice>& in_device,
+		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, std::string& in_dbgName, T in_init = VK_NULL_HANDLE)
+		: m_obj(in_init)
+	{
+		// Assign lambda, here also bind in_device as ref
+		m_deleter =
+			[&in_device, in_deleterFunc](T obj)
+		{
+			in_deleterFunc(in_device, obj, nullptr);
+		};
+		m_dbgName = in_dbgName;
+	}
+
+	void SetDbgName(std::string& in_dbgName)
+	{
+		m_dbgName = in_dbgName;
+	}
+#endif // _DEBUG
+
+
 	~VkObj()
 	{
+#ifdef _DEBUG
+		if (!m_dbgName.empty())
+			DEBUGPRINT("Vulkan Object: Removing: " + m_dbgName);
+		else
+			DEBUGPRINT("Vulkan Object: Removing: (unnamed)");
+#endif // _DEBUG
 		Clean();
 	}
 
@@ -88,8 +117,20 @@ public:
 
 	T* Replace() 
 	{
+#ifdef _DEBUG
+		if (!m_dbgName.empty())
+			DEBUGPRINT("Vulkan Object: Replacing: " + m_dbgName);
+		else
+			DEBUGPRINT("Vulkan Object: Replacing: (unnamed)");
+#endif // _DEBUG
 		Clean();
 		return &m_obj;
+	}
+
+	void Reset(T* in_init)
+	{
+		T* ptr = Replace();
+		ptr = in_init;
 	}
 
 	operator T () const 
@@ -122,4 +163,9 @@ private:
 
 	T m_obj{ VK_NULL_HANDLE };
 	std::function<void(T)> m_deleter;
+
+#ifdef _DEBUG
+	std::string m_dbgName;
+#endif // _DEBUG
+
 };

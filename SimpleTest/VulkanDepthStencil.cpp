@@ -9,7 +9,11 @@ VulkanDepthStencil::VulkanDepthStencil(const VkObj<VkDevice>& in_device)
 	, m_gpuMem(in_device, vkFreeMemory)
 	, m_imageView(in_device, vkDestroyImageView)
 {
-
+#ifdef _DEBUG
+	m_image.SetDbgName(std::string("DepthStencilImage"));
+	m_gpuMem.SetDbgName(std::string("DepthStencilMemory"));
+	m_imageView.SetDbgName(std::string("DepthStencilImageView"));
+#endif // _DEBUG
 }
 
 VulkanDepthStencilFactory::VulkanDepthStencilFactory(VkDevice in_device, const std::shared_ptr<VulkanMemoryHelper> in_memory)

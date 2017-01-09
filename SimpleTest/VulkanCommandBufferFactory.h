@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include "VulkanMesh.h"
+#include "VkObj.h"
 
 class VulkanSwapChain;
 struct VulkanDepthStencil;
@@ -15,21 +16,21 @@ public:
 	struct DrawCommandBufferDependencies
 	{
 	public:
-		DrawCommandBufferDependencies(VkPipelineLayout& in_pipelineLayout, VkPipeline& in_pipeline, std::vector<VkDescriptorSet>& in_descriptorSets,
-			int in_vertexBufferBindId, VulkanMesh& in_mesh, VulkanSwapChain& in_swapChain);
+		DrawCommandBufferDependencies(const VkPipelineLayout* in_pipelineLayout, const VkPipeline* in_pipeline, std::vector<VkDescriptorSet>* in_descriptorSets,
+			int in_vertexBufferBindId, VulkanMesh* in_mesh, VulkanSwapChain* in_swapChain);
 
 		// What pipeline layout and pipeline
-		VkPipelineLayout&              m_pipelineLayout;
-		VkPipeline&                    m_pipeline;
+		const VkPipelineLayout*              m_pipelineLayout;
+		const VkPipeline*                    m_pipeline;
 		// Descriptor sets
-		std::vector<VkDescriptorSet>&  m_descriptorSets;
+		std::vector<VkDescriptorSet>*  m_descriptorSets;
 
 		// Mesh to draw
 		int m_vertexBufferBindId;
-		VulkanMesh& m_mesh;
+		VulkanMesh* m_mesh;
 
 		// Swap chain
-		VulkanSwapChain& m_swapChain;
+		VulkanSwapChain* m_swapChain;
 	};
 
 

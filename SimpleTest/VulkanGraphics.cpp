@@ -31,20 +31,44 @@
 // Binding IDs
 #define VERTEX_BUFFER_BIND_ID 0
 
+#ifdef _DEBUG
+#define REGISTER_VKOBJ(x, d, func, dbg) x(d, func, std::string(dbg))
+#else
+#define REGISTER_VKOBJ(x, d, func, dbg) x(d, func)
+#endif // _DEBUG
+
+
+
 
 VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in_width, uint32_t in_height)
+	//////////////////////////////////////////////////////////////////////////
+	// VkObjects needs to be created with pointers to their destruction functions.
+	// Most also need a reference to the device wrapper for their destruction.
+	// Wrapped data assigned later upon initialization.
+	//////////////////////////////////////////////////////////////////////////
 	: m_vulkanInstance(vkDestroyInstance)
 	, m_device(vkDestroyDevice)
-	, m_commandPool(m_device, vkDestroyCommandPool)
-	, m_pipelineCache(m_device, vkDestroyPipelineCache)
+	, REGISTER_VKOBJ(m_commandPool, m_device, vkDestroyCommandPool, "CommandPool")
+	, REGISTER_VKOBJ(m_pipelineCache, m_device, vkDestroyPipelineCache, "PipelineCache")
+	, REGISTER_VKOBJ(m_renderPass, m_device, vkDestroyRenderPass, "RenderPass")
+	, REGISTER_VKOBJ(m_descriptorPool, m_device, vkDestroyDescriptorPool, "DescriptorPool")
+	, REGISTER_VKOBJ(m_presentComplete, m_device, vkDestroySemaphore, "PresentCompleteSemaphore")
+	, REGISTER_VKOBJ(m_renderComplete, m_device, vkDestroySemaphore, "RenderCompleteSemaphore")
+	, REGISTER_VKOBJ(m_descriptorSetLayoutPerFrame_TriangleProgram, m_device, vkDestroyDescriptorSetLayout, "DescriptorSetLayoutPerFrame_TriangleProgram")
+	, REGISTER_VKOBJ(m_pipelineLayout_TriangleProgram, m_device, vkDestroyPipelineLayout, "PipelineLayout_TriangleProgram")
+	, REGISTER_VKOBJ(m_pipeline_TriangleProgram, m_device, vkDestroyPipeline, "Pipeline_TriangleProgram")
+	//////////////////////////////////////////////////////////////////////////
 	, m_depthStencil(m_device)
-	, m_renderPass(m_device, vkDestroyRenderPass)
 	, m_graphicsQueueIdx()
 	, m_postPresentCommandBuffers(VK_NULL_HANDLE)
 	, m_currentFrameBufferIdx(0)
 	, m_width(in_width)
 	, m_height(in_height)
 {
+#ifdef _DEBUG
+	m_vulkanInstance.SetDbgName(std::string("Instance"));
+	m_device.SetDbgName(std::string("Device"));
+#endif
 	Init(in_hWnd, in_hInstance);
 }
 
@@ -194,7 +218,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	CreateSemaphores();
 
 	// Create triangle mesh
-	m_triangleMesh = std::make_shared<VulkanMesh>();
+	m_triangleMesh = std::make_shared<VulkanMesh>(m_device);
 	m_bufferFactory->CreateTriangle(*m_triangleMesh.get());
 
 	// TODO: The following methods are currently specialized for a triangle example
@@ -213,7 +237,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Descriptor sets are useful groups as they can be grouped based on update frequency.
 	CreateTriangleProgramDescriptorSetLayout(); // Describes the various bind stages of our descriptors
 	// The pipeline then can be seen sorta like a function taking some structs as parameters, where then the parameter types are the descriptor sets layout(s) (1 layout used here atm)
-	CreatePipelineLayout(m_descriptorSetLayoutPerFrame_TriangleProgram, m_pipelineLayout_TriangleProgram); // Create a pipeline which can handle the specified descriptor set layout
+	CreatePipelineLayout(m_descriptorSetLayoutPerFrame_TriangleProgram, *m_pipelineLayout_TriangleProgram.Replace()); // Create a pipeline which can handle the specified descriptor set layout
 	CreateTriangleProgramPipelineAndLoadShaders();
 	// Set up the descriptor set pool, this from where
 	CreateTriangleProgramDescriptorPool();
@@ -224,12 +248,12 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Set up a command buffer for drawing the mesh
 	std::vector<VkDescriptorSet> descriptors = { m_descriptorSetPerFrame };
 	VulkanCommandBufferFactory::DrawCommandBufferDependencies drawInfo(
-		m_pipelineLayout_TriangleProgram,
-		m_pipeline_TriangleProgram,
-		descriptors,
+		&m_pipelineLayout_TriangleProgram,
+		&m_pipeline_TriangleProgram,
+		&descriptors,
 		VERTEX_BUFFER_BIND_ID,
-		*m_triangleMesh.get(),
-		*m_swapChain.get()
+		m_triangleMesh.get(),
+		m_swapChain.get()
 		);
 	VkClearColorValue clearCol = { { 0.0f, 0.0f, 1.0f, 1.0f } };
 	m_commandBufferFactory->ConstructDrawCommandBuffer(m_drawCommandBuffers, m_frameBuffers, 
@@ -313,38 +337,12 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 
 void VulkanGraphics::Destroy()
 {
-	// Triangle program
-	OutputDebugString("Vulkan: Removing pipeline\n");
-	vkDestroyPipeline(m_device, m_pipeline_TriangleProgram, nullptr);
-	OutputDebugString("Vulkan: Removing pipeline layout\n");
-	vkDestroyPipelineLayout(m_device, m_pipelineLayout_TriangleProgram, nullptr);
-	OutputDebugString("Vulkan: Removing per-frame descriptor set\n");
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayoutPerFrame_TriangleProgram, nullptr);
-
-	OutputDebugString("Vulkan: Freeing mesh data\n");
-	vkDestroyBuffer(m_device, m_triangleMesh->m_vertices.m_buffer, nullptr);
-	vkFreeMemory(m_device, m_triangleMesh->m_vertices.m_gpuMem, nullptr);
-	vkDestroyBuffer(m_device, m_triangleMesh->m_indices.m_buffer, nullptr);
-	vkFreeMemory(m_device, m_triangleMesh->m_indices.m_gpuMem, nullptr);
-
-	OutputDebugString("Vulkan: Destroying semaphores\n");
-	vkDestroySemaphore(m_device, m_presentComplete, nullptr);
-	vkDestroySemaphore(m_device, m_renderComplete, nullptr);
-
-	OutputDebugString("Vulkan: Freeing uniform data\n");
-	vkDestroyBuffer(m_device, m_ubufPerFrame->m_allocation.m_buffer, nullptr);
-	vkFreeMemory(m_device, m_ubufPerFrame->m_allocation.m_gpuMem, nullptr);
-
 	// General
 	OutputDebugString("Vulkan: Removing swap chain\n");
 	m_swapChain.reset();
 
-	OutputDebugString("Vulkan: Removing descriptor pool\n");
-	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 	OutputDebugString("Vulkan: Removing command buffers\n");
 	DestroyCommandBuffers();
-	//OutputDebugString("Vulkan: Removing render pass\n");
-	//vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 
 	OutputDebugString("Vulkan: Removing frame buffers\n");
 	for (uint32_t i = 0; i < static_cast<uint32_t>(m_frameBuffers.size()); i++)
@@ -352,31 +350,10 @@ void VulkanGraphics::Destroy()
 		vkDestroyFramebuffer(m_device, m_frameBuffers[i], nullptr);
 	}
 
-	
-	for (auto& shaderModule : m_shaderModules)
-	{
-		vkDestroyShaderModule(m_device, shaderModule, nullptr);
-	}
-	//OutputDebugString("Vulkan: Removing depth stencil view\n");
-	//vkDestroyImageView(m_device, m_depthStencil.m_imageView, nullptr);
-	//OutputDebugString("Vulkan: Removing depth stencil image\n");
-	//vkDestroyImage(m_device, m_depthStencil.m_image, nullptr);
-	//OutputDebugString("Vulkan: Freeing memory of depth stencil on the GPU\n");
-	//vkFreeMemory(m_device, m_depthStencil.m_gpuMem, nullptr);
-
-	//OutputDebugString("Vulkan: Removing pipeline cache\n");
-	//vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
-
-	//OutputDebugString("Vulkan: Removing command pool\n");
-	//vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-	//OutputDebugString("Vulkan: Removing device object\n");
-	//vkDestroyDevice(m_device, nullptr);
 	if (ENABLE_VALIDATION)
 	{
 		vkDebug::freeDebugCallback(m_vulkanInstance);
 	}
-	//OutputDebugString("Vulkan: Removing instance object\n");
-	//vkDestroyInstance(m_vulkanInstance, nullptr);
 }
 
 void VulkanGraphics::DestroyCommandBuffers()
@@ -607,9 +584,9 @@ void VulkanGraphics::CreateSemaphores()
 	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	semaphoreCreateInfo.pNext = NULL;
 
-	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_presentComplete);
+	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, m_presentComplete.Replace());
 	if (err) throw ProgramError(std::string("Creating wait semaphore for present-complete: ") + vkTools::errorString(err));
-	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderComplete);
+	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, m_renderComplete.Replace());
 	if (err) throw ProgramError(std::string("Creating signal semaphore for render-complete: ") + vkTools::errorString(err));
 }
 
@@ -676,7 +653,7 @@ void VulkanGraphics::CreateTriangleProgramUniformBuffers()
 	worldMatrix = glm::rotate(worldMatrix, deg_to_rad(m_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 	worldMatrix = glm::rotate(worldMatrix, deg_to_rad(m_rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
-	m_ubufPerFrame = std::make_shared<VulkanUniformBufferPerFrame>();
+	m_ubufPerFrame = std::make_shared<VulkanUniformBufferPerFrame>(m_device);
 	m_bufferFactory->CreateUniformBufferPerFrame(*m_ubufPerFrame.get(), projectionMatrix, worldMatrix, viewMatrix);
 	// --------------------------------------------------------------------------------------------------------
 
@@ -698,7 +675,7 @@ void VulkanGraphics::CreateTriangleProgramDescriptorSetLayout()
 	};
 	VkDescriptorSetLayoutCreateInfo descriptorLayout = CreateDescriptorSetLayoutCreateInfo(setLayoutBindings);
 
-	VkResult err = vkCreateDescriptorSetLayout(m_device, &descriptorLayout, NULL, &m_descriptorSetLayoutPerFrame_TriangleProgram);
+	VkResult err = vkCreateDescriptorSetLayout(m_device, &descriptorLayout, NULL, m_descriptorSetLayoutPerFrame_TriangleProgram.Replace());
 	if(err) throw ProgramError(std::string("Create descriptor set layout: ") + vkTools::errorString(err));
 }
 
@@ -725,7 +702,7 @@ void VulkanGraphics::CreateTriangleProgramDescriptorPool()
 	descriptorPoolCreateInfo.pPoolSizes = typeCounts;
 	descriptorPoolCreateInfo.maxSets = 1; // The max number of descriptor sets that can be created. (Requesting more results in an error)
 
-	VkResult err = vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool);
+	VkResult err = vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, m_descriptorPool.Replace());
 	if (err) throw ProgramError(std::string("Create descriptor pool: ") + vkTools::errorString(err));
 }
 
@@ -915,7 +892,12 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	// Store shader modules
 	for (auto& shader : shaderStagesCreateInfo)
 	{
-		m_shaderModules.push_back(shader.module);
+
+		m_shaderModules.push_back(std::make_unique<ShaderModuleType>(m_device, vkDestroyShaderModule, 
+#ifdef _DEBUG
+			std::string("ShaderModule"), 
+#endif
+			shader.module));
 	}
 
 	// Vertex input state (use our simple vertex layout with position and color for this pipeline)
@@ -941,7 +923,7 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 
 	// Create the pipeline
-	err = vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineCreateInfo, nullptr, &m_pipeline_TriangleProgram);
+	err = vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineCreateInfo, nullptr, m_pipeline_TriangleProgram.Replace());
 	if (err)
 	{
 		throw ProgramError(std::string("Create graphics pipeline: ") + vkTools::errorString(err));

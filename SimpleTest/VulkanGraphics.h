@@ -82,6 +82,7 @@ private:
 	// Data
 	// Here VkObj wrappers are used for destroy-required Vulkan objects, 
 	// it ensures their destruction when this instance is destroyed.
+	// Some lists still uses explicit removal until I've decided the best way to handle them
 
 	// The Vulkan instance
 	VkObj<VkInstance> m_vulkanInstance;
@@ -138,24 +139,26 @@ private:
 	glm::vec3 m_rotation; // temp rotation vector of view 
 
 	// Pipeline layout
-	VkPipelineLayout m_pipelineLayout_TriangleProgram;
+	VkObj<VkPipelineLayout> m_pipelineLayout_TriangleProgram;
 	// Pipeline cache
 	VkObj<VkPipelineCache> m_pipelineCache;
 	// Pipeline
-	VkPipeline m_pipeline_TriangleProgram;
+	VkObj<VkPipeline> m_pipeline_TriangleProgram;
 
 	// Semaphores
-	VkSemaphore m_presentComplete;
-	VkSemaphore m_renderComplete;
+	VkObj<VkSemaphore> m_presentComplete;
+	VkObj<VkSemaphore> m_renderComplete;
 
 	// Descriptor sets
-	VkDescriptorSet       m_descriptorSetPerFrame; // All descriptors to be used per frame
-	VkDescriptorSetLayout m_descriptorSetLayoutPerFrame_TriangleProgram;
+	VkDescriptorSet                 m_descriptorSetPerFrame; // All descriptors to be used per frame
+	VkObj<VkDescriptorSetLayout>    m_descriptorSetLayoutPerFrame_TriangleProgram;
 	// Descriptor set pool
-	VkDescriptorPool      m_descriptorPool;
+	VkObj<VkDescriptorPool>  m_descriptorPool;
 
 	// Shaders created (we need to store these for proper cleanup)
-	std::vector<VkShaderModule> m_shaderModules;
+	typedef VkObj<VkShaderModule>             ShaderModuleType;
+	typedef std::unique_ptr<ShaderModuleType> ShaderModulePtr;
+	std::vector<ShaderModulePtr> m_shaderModules;
 
 
 	// Render size

@@ -5,8 +5,8 @@
 #include "vulkantools.h"
 
 
-VulkanCommandBufferFactory::DrawCommandBufferDependencies::DrawCommandBufferDependencies(VkPipelineLayout& in_pipelineLayout, VkPipeline& in_pipeline, 
-	std::vector<VkDescriptorSet>& in_descriptorSets, int in_vertexBufferBindId, VulkanMesh& in_mesh, VulkanSwapChain& in_swapChain)
+VulkanCommandBufferFactory::DrawCommandBufferDependencies::DrawCommandBufferDependencies(const VkPipelineLayout* in_pipelineLayout, const VkPipeline* in_pipeline, std::vector<VkDescriptorSet>* in_descriptorSets,
+	int in_vertexBufferBindId, VulkanMesh* in_mesh, VulkanSwapChain* in_swapChain)
 	: m_pipelineLayout(in_pipelineLayout)
 	, m_pipeline(in_pipeline)
 	, m_descriptorSets(in_descriptorSets)
@@ -72,8 +72,15 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 	// The following buffer lists should all be of the same size, as they represent the size of the buffers in the swap chain
 	if (inout_buffers.size() != in_targetFrameBuffers.size()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Frame buffers count not equal to command buffers count."));
 	
-	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain.GetBuffers();
-	if (inout_buffers.size() != in_dependencyObjects.m_swapChain.GetBuffersCount()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Swap chain buffers count not equal to command buffers count."));
+	// Assert all dependencies used in method
+	assert(in_dependencyObjects.m_pipelineLayout);
+	assert(in_dependencyObjects.m_pipeline);
+	assert(in_dependencyObjects.m_descriptorSets);
+	assert(in_dependencyObjects.m_mesh);
+	assert(in_dependencyObjects.m_swapChain);
+
+	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain->GetBuffers();
+	if (inout_buffers.size() != in_dependencyObjects.m_swapChain->GetBuffersCount()) throw ProgramError(std::string("ConstructDrawCommandBuffer: Swap chain buffers count not equal to command buffers count."));
 
 	VkCommandBufferBeginInfo cmdBufInfo = {};
 	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -124,15 +131,15 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 
 		// Bind descriptor sets describing shader binding points
 		vkCmdBindDescriptorSets(inout_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, 
-			in_dependencyObjects.m_pipelineLayout, 
-			0, static_cast<uint32_t>(in_dependencyObjects.m_descriptorSets.size()), in_dependencyObjects.m_descriptorSets.data(), 0, nullptr);
+			*in_dependencyObjects.m_pipelineLayout, 
+			0, static_cast<uint32_t>(in_dependencyObjects.m_descriptorSets->size()), in_dependencyObjects.m_descriptorSets->data(), 0, nullptr);
 
 		// Bind the rendering pipeline (including the shaders)
-		vkCmdBindPipeline(inout_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, in_dependencyObjects.m_pipeline);
+		vkCmdBindPipeline(inout_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, *in_dependencyObjects.m_pipeline);
 
 		// Draw mesh!
 		// -----------------------------------------------------------
-		VulkanMesh& mesh = in_dependencyObjects.m_mesh;
+		VulkanMesh& mesh = *in_dependencyObjects.m_mesh;
 		// Bind triangle vertices
 		VkDeviceSize offsets[1] = { 0 };
 		const uint32_t bindingCount = 1; // how many vertex buffer bindings to update
@@ -187,10 +194,13 @@ void VulkanCommandBufferFactory::ConstructPostPresentCommandBuffer(std::vector<V
 {
 	// Create commandbuffers for each frame buffer that resets the color attachment to its original state after presenting
 	// This is a reset of the last stage of the draw commandbuffer (see ConstructDrawCommandBuffer)
-	if (inout_buffers.size() != in_dependencyObjects.m_swapChain.GetBuffersCount()) throw ProgramError(std::string("ConstructPostPresentCommandBuffer: Swap chain buffers count not equal to command buffers count."));
+	if (inout_buffers.size() != in_dependencyObjects.m_swapChain->GetBuffersCount()) throw ProgramError(std::string("ConstructPostPresentCommandBuffer: Swap chain buffers count not equal to command buffers count."));
+
+	// Assert all dependencies used in method
+	assert(in_dependencyObjects.m_swapChain);
 
 	VkResult err;
-	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain.GetBuffers();
+	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain->GetBuffers();
 
 	VkImageMemoryBarrier postPresentBarrier = {};
 	postPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;

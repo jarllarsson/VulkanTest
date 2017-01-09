@@ -49,7 +49,7 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 #endif
 	if (err)
 	{
-		DEBUGPRINT(vkTools::errorString(err).c_str());
+		DEBUGPRINT(vkTools::errorString(err));
 	}
 
 	// Get list of supported surface formats
