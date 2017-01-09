@@ -69,12 +69,38 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Create the Vulkan instance
 	err = CreateInstance(&m_vulkanInstance);
 	if (err) throw ProgramError(std::string("Create Vulkan instance: ") + vkTools::errorString(err));
+
+	// If requested, we enable the default validation layers for debugging
+	if (ENABLE_VALIDATION)
+	{
+		// Report flags for defining what levels to enable for the debug layer
+		VkDebugReportFlagsEXT debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
+		vkDebug::setupDebugging(m_vulkanInstance, debugReportFlags, VK_NULL_HANDLE);
+	}
 	
 	// Create the physical device object
 	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
 	uint32_t gpuCount = 0;
+	// Get number of available physical devices
+	VK_CHECK_RESULT(vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, nullptr));
+	assert(gpuCount > 0);
 	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
-	if (err) throw ProgramError(std::string("Enumerating GPUs: ") + vkTools::errorString(err));
+	
+	if (err != VK_SUCCESS)
+	{
+		if (err == VK_INCOMPLETE)
+		{
+			// Incomplete can be success if not 0 gpus found
+			if (gpuCount <= 0 || !m_physicalDevice)
+			{
+				throw ProgramError(std::string("No GPUs found when enumerating GPUs: ") + vkTools::errorString(err));
+			}
+		}
+		else if (err != VK_SUCCESS)
+		{
+			throw ProgramError(std::string("Enumerating GPUs: ") + vkTools::errorString(err));
+		}
+	}
 	
 	// Initialize memory helper class
 	m_memory = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
@@ -238,7 +264,9 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 	appInfo.pNext = NULL;                               // Mandatory
 	appInfo.pApplicationName = name.c_str();
 	appInfo.pEngineName = name.c_str();
-	appInfo.apiVersion = VK_API_VERSION;
+	appInfo.applicationVersion = 1;
+	appInfo.engineVersion = 1;
+	appInfo.apiVersion = VK_API_VERSION_1_0;
 	std::vector<const char*> enabledExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
 
 	// Windows specific
@@ -248,7 +276,7 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 	VkInstanceCreateInfo instanceCreateInfo = {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO; // Mandatory
 	instanceCreateInfo.pNext = NULL;                                   // Mandatory
-	instanceCreateInfo.flags = 0;                                      // Mandatory
+	//instanceCreateInfo.flags = 0;                                      // Mandatory
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 	// Next, set up what extensions to enable
 	if (enabledExtensions.size() > 0)
@@ -268,7 +296,13 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
 
-	return vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
+	VkResult err = vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
+	if (err)
+	{
+		return err;
+	}
+
+	return err;
 }
 
 void VulkanGraphics::Destroy()
@@ -353,6 +387,8 @@ void VulkanGraphics::DestroyCommandBuffers()
 
 uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 {
+	// TODO: Move this to swapchain (need to split up its current constructor)
+
 	// Find a valid queue that will support graphics operations
 	uint32_t graphicsQueueIdx = 0;
 	uint32_t queueCount = 0;
@@ -363,6 +399,13 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 	{
 		throw ProgramError(std::string("Get queues on selected GPU"));
 	}
+
+	// Find a queue that support presenting
+	/*d::vector<VkBool32> supportsPresent(queueCount);
+	for (uint32_t i = 0; i < queueCount; i++)
+	{
+		fpGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, i, surface, &supportsPresent[i]);
+	}*/
 
 	// When we have the count of the available queues, we can create a vector of that size and
 	// call vkGetPhysicalDeviceQueueFamilyProperties again, and fill the vector with the queues' properties.
@@ -380,6 +423,7 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 		if (queueProps[graphicsQueueIdx].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			break;
 	}
+
 	if (graphicsQueueIdx >= queueCount)
 	{
 		throw ProgramError(std::string("None of the queues on the selected GPU are graphics queues"));
@@ -894,18 +938,6 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	err = vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineCreateInfo, nullptr, &m_pipeline_TriangleProgram);
 	if (err)
 	{
-		if (err == -1000012000)
-		{
-			// Hardcoded for now:
-			// see http://developer.download.nvidia.com/assets/gameworks/downloads/secure/Vulkan_Beta_Drivers/VK_NV_glsl_shader.txt?autho=1463334899_30ddfca4ebd31a43eeefc10957d34f6f&file=VK_NV_glsl_shader.txt
-			throw ProgramError(std::string("Create graphics pipeline: VK_ERROR_INVALID_SHADER_NV\nOne or more shaders failed to compile or link. More details are\nreported back to the application via VK_EXT_debug_report\nif enabled."));
-			// If any shader stage fails to compile VK_ERROR_INVALID_SHADER_NV
-			// will be generated and the compile log will be reported back to the
-			// application by VK_EXT_debug_report if enabled.
-		}
-		else
-		{
-			throw ProgramError(std::string("Create graphics pipeline: ") + vkTools::errorString(err));
-		}
+		throw ProgramError(std::string("Create graphics pipeline: ") + vkTools::errorString(err));
 	}
 }

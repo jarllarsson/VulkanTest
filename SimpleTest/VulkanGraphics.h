@@ -4,6 +4,7 @@
 #include "MathTypes.h"
 #include "vulkan/vulkan.h"
 #include "VulkanDepthStencil.h"
+#include "VkObj.h"
 
 
 class VulkanSwapChain;

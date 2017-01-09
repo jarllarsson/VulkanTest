@@ -100,9 +100,11 @@
   <ItemGroup>
     <ClInclude Include="..\include\smallvulkanwrappers\vulkandebug.h" />
     <ClInclude Include="..\include\smallvulkanwrappers\vulkantools.h" />
+    <ClInclude Include="D:\Downloads\Vulkan-master (1)\Vulkan-master\base\VulkanInitializers.hpp" />
     <ClInclude Include="DebugPrint.h" />
     <ClInclude Include="ErrorReporting.h" />
     <ClInclude Include="MathTypes.h" />
+    <ClInclude Include="VkObj.h" />
     <ClInclude Include="VulkanShaderLoader.h" />
     <ClInclude Include="VulkanUniformBufferPerFrame.h" />
     <ClInclude Include="VulkanMesh.h" />

@@ -36,7 +36,7 @@ public:
 	VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice in_physicalDevice, VkDevice in_device,
 		            uint32_t* in_width, uint32_t* in_height,
 	                void* in_platformHandle, void* in_platformWindow, 
-	                VkSwapchainKHR in_oldSwapChain = VK_NULL_HANDLE);
+	                VkSwapchainKHR in_oldSwapChain = VK_NULL_HANDLE); // TODO: Need to split up, move queue index creation here and use fpGetPhysicalDeviceSurfaceSupportKHR on them
 
 	~VulkanSwapChain();
 
@@ -71,7 +71,7 @@ private:
 
 
 	// Function pointers
-	PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR;
+	PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR; // TODO: Implement usage
 	PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR fpGetPhysicalDeviceSurfaceCapabilitiesKHR;
 	PFN_vkGetPhysicalDeviceSurfaceFormatsKHR fpGetPhysicalDeviceSurfaceFormatsKHR;
 	PFN_vkGetPhysicalDeviceSurfacePresentModesKHR fpGetPhysicalDeviceSurfacePresentModesKHR;

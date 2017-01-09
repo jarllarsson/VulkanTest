@@ -106,5 +106,11 @@
     <ClInclude Include="VulkanShaderLoader.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="D:\Downloads\Vulkan-master (1)\Vulkan-master\base\VulkanInitializers.hpp">
+      <Filter>Vulkan Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="VkObj.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
