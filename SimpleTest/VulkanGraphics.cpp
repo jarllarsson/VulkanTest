@@ -9,6 +9,7 @@
 #include "vulkandebug.h" // debug layer help (not implemented yet)
 
 // General Vulkan setup helpers and factories
+#include "VulkanHelper.h"
 #include "VulkanSwapChain.h"
 #include "VulkanCommandBufferFactory.h"
 #include "VulkanMemoryHelper.h"
@@ -48,6 +49,7 @@ VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in
 	//////////////////////////////////////////////////////////////////////////
 	: m_vulkanInstance(vkDestroyInstance)
 	, m_device(vkDestroyDevice)
+	, REGISTER_VKOBJ(m_surface, m_vulkanInstance, vkDestroySurfaceKHR, "Present Surface")
 	, REGISTER_VKOBJ(m_commandPool, m_device, vkDestroyCommandPool, "CommandPool")
 	, REGISTER_VKOBJ(m_pipelineCache, m_device, vkDestroyPipelineCache, "PipelineCache")
 	, REGISTER_VKOBJ(m_renderPass, m_device, vkDestroyRenderPass, "RenderPass")
@@ -100,6 +102,9 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	err = CreateInstance(m_vulkanInstance.Replace());
 	if (err) throw ProgramError(std::string("Create Vulkan instance: ") + vkTools::errorString(err));
 
+	// Set up function pointers that requires Vulkan instance
+	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceSupportKHR);
+
 	// If requested, we enable the default validation layers for debugging
 	if (ENABLE_VALIDATION)
 	{
@@ -135,8 +140,12 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Initialize memory helper class
 	m_memory = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
 
+	// Create presentation surface
+	CreatePresentSurface(reinterpret_cast<void*>(in_hInstance), reinterpret_cast<void*>(in_hWnd), m_surface.Replace());
+
 	// Get graphics queue index on the current physical device
 	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
+
 
 	// Create the logical device
 	err = CreateLogicalDevice(m_graphicsQueueIdx, m_device.Replace());
@@ -163,8 +172,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	// Create a swap chain representation
 	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
-		&m_width, &m_height,
-		in_hInstance, in_hWnd);
+		m_surface, &m_width, &m_height);
 
 	if (ENABLE_VALIDATION)
 	{
@@ -370,8 +378,6 @@ void VulkanGraphics::DestroyCommandBuffers()
 
 uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 {
-	// TODO: Move this to swapchain (need to split up its current constructor)
-
 	// Find a valid queue that will support graphics operations
 	uint32_t graphicsQueueIdx = 0;
 	uint32_t queueCount = 0;
@@ -382,13 +388,6 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 	{
 		throw ProgramError(std::string("Get queues on selected GPU"));
 	}
-
-	// Find a queue that support presenting
-	/*d::vector<VkBool32> supportsPresent(queueCount);
-	for (uint32_t i = 0; i < queueCount; i++)
-	{
-		fpGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, i, surface, &supportsPresent[i]);
-	}*/
 
 	// When we have the count of the available queues, we can create a vector of that size and
 	// call vkGetPhysicalDeviceQueueFamilyProperties again, and fill the vector with the queues' properties.
@@ -403,7 +402,9 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 		-- sparse memory  VK_QUEUE_SPARSE_BINDING_BIT
 		*/
 		graphicsQueueIdx = i;
-		if (queueProps[graphicsQueueIdx].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		VkBool32 supportsPresent;
+		fpGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, i, m_surface, &supportsPresent);
+		if (supportsPresent && queueProps[graphicsQueueIdx].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			break;
 	}
 
@@ -413,6 +414,38 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 	}
 
 	return graphicsQueueIdx;
+}
+
+void VulkanGraphics::CreatePresentSurface(void* in_platformHandle, void* in_platformWindow, VkSurfaceKHR* out_surface)
+{
+	assert(in_platformHandle);
+	assert(in_platformWindow);
+	VkResult err;
+	// Create surface
+#ifdef _WIN32
+	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(in_platformHandle);
+	surfaceCreateInfo.hwnd = reinterpret_cast<HWND>(in_platformWindow);
+	err = vkCreateWin32SurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
+#else
+#ifdef __ANDROID__
+	VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.window = window;
+	err = vkCreateAndroidSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, NULL, out_surface);
+#else
+	VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.connection = connection;
+	surfaceCreateInfo.window = window;
+	err = vkCreateXcbSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
+#endif
+#endif
+	if (err)
+	{
+		DEBUGPRINT(vkTools::errorString(err));
+	}
 }
 
 VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device)

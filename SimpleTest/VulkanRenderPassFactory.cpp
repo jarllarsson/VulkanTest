@@ -13,11 +13,11 @@ VkResult VulkanRenderPassFactory::CreateStandardRenderPass(VkFormat in_colorForm
 	// Color and Depth stencil settings
 	VkAttachmentDescription attachments[attachmentCount];
 	attachments[colIdx].format = in_colorFormat;
-	attachments[colIdx].samples = VK_SAMPLE_COUNT_1_BIT;
-	attachments[colIdx].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	attachments[colIdx].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	attachments[colIdx].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	attachments[colIdx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachments[colIdx].samples = VK_SAMPLE_COUNT_1_BIT; // No multisampling (1 sample)
+	attachments[colIdx].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // Before rendering (clear existing)
+	attachments[colIdx].storeOp = VK_ATTACHMENT_STORE_OP_STORE; // After rendering (keep for presenting)
+	attachments[colIdx].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // Before rendering (not doing anything with stencil, so don't care)
+	attachments[colIdx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // After rendering (not doing anything with stencil, so don't care)
 	attachments[colIdx].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	attachments[colIdx].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 

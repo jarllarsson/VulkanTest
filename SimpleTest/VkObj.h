@@ -33,25 +33,14 @@ public:
 	VkObj(std::function<void(T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
 	: m_obj(in_init)
 	{
-		// Assign a lambda to the deleter functor
-		// that calls the in_deleterFunc functor (capture by value in capture clause [] )
-		// with parameter T obj (is set as parameter when we call m_deleter)
-		m_deleter = 
-			[in_deleterFunc](T obj) {
-				in_deleterFunc(obj, nullptr); 
-			}; // internal delete is call 
+		Init(in_deleterFunc, in_init);
 	}
 
 	VkObj(const VkObj<VkInstance>& in_instance,
 		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
 	: m_obj(in_init)
 	{
-		// Assign lambda, here also bind in_instance as ref
-		m_deleter = 
-			[&in_instance, in_deleterFunc](T obj) 
-			{
-				in_deleterFunc(in_instance, obj, nullptr);
-			};
+		Init(in_instance, in_deleterFunc, in_init);
 	}
 
 
@@ -59,26 +48,24 @@ public:
 		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
 	: m_obj(in_init)
 	{
-		// Assign lambda, here also bind in_device as ref
-		m_deleter = 
-			[&in_device, in_deleterFunc](T obj)
-			{ 
-				in_deleterFunc(in_device, obj, nullptr); 
-			};
+		Init(in_device, in_deleterFunc, in_init);
 	}
 
 #ifdef _DEBUG
-	// Special constructor that also stores a debug name
+	// Special constructors that also stores a debug name
+	VkObj(const VkObj<VkInstance>& in_instance,
+		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc, std::string& in_dbgName, T in_init = VK_NULL_HANDLE)
+		: m_obj(in_init)
+	{
+		Init(in_instance, in_deleterFunc, in_init);
+		m_dbgName = in_dbgName;
+	}
+
 	VkObj(const VkObj<VkDevice>& in_device,
 		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, std::string& in_dbgName, T in_init = VK_NULL_HANDLE)
 		: m_obj(in_init)
 	{
-		// Assign lambda, here also bind in_device as ref
-		m_deleter =
-			[&in_device, in_deleterFunc](T obj)
-		{
-			in_deleterFunc(in_device, obj, nullptr);
-		};
+		Init(in_device, in_deleterFunc, in_init);
 		m_dbgName = in_dbgName;
 	}
 
@@ -155,6 +142,40 @@ public:
 
 
 private:
+	void Init(std::function<void(T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+	{
+		// Assign a lambda to the deleter functor
+		// that calls the in_deleterFunc functor (capture by value in capture clause [] )
+		// with parameter T obj (is set as parameter when we call m_deleter)
+		m_deleter =
+			[in_deleterFunc](T obj) {
+			in_deleterFunc(obj, nullptr);
+		}; // internal delete is call 
+	}
+
+	void Init(const VkObj<VkInstance>& in_instance,
+		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+	{
+		// Assign lambda, here also bind in_instance as ref
+		m_deleter =
+			[&in_instance, in_deleterFunc](T obj)
+		{
+			in_deleterFunc(in_instance, obj, nullptr);
+		};
+	}
+
+
+	void Init(const VkObj<VkDevice>& in_device,
+		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+	{
+		// Assign lambda, here also bind in_device as ref
+		m_deleter =
+			[&in_device, in_deleterFunc](T obj)
+		{
+			in_deleterFunc(in_device, obj, nullptr);
+		};
+	}
+
 	void Clean()
 	{
 		if (m_obj != VK_NULL_HANDLE) m_deleter(m_obj);

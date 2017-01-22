@@ -2,13 +2,15 @@
 #include "DebugPrint.h"
 #include "vulkantools.h"
 #include "ErrorReporting.h"
+#include "VulkanHelper.h"
 
-VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice in_physicalDevice, VkDevice in_device, 
-	                             uint32_t* in_width, uint32_t* in_height,
-	                             void* in_platformHandle, void* in_platformWindow, VkSwapchainKHR in_oldSwapChain/* = VK_NULL_HANDLE*/)
+VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice in_physicalDevice, VkDevice in_device,
+								 VkSurfaceKHR in_surface,
+								 uint32_t* in_width, uint32_t* in_height,
+								 VkSwapchainKHR in_oldSwapChain/* = VK_NULL_HANDLE*/)
 	: m_vulkanInstance(in_vulkanInstance)
 	, m_device(in_device)
-	, m_surface(VK_NULL_HANDLE)
+	, m_surface(in_surface)
 	, m_swapChain(VK_NULL_HANDLE)
 	, m_buffers()
 	, m_colorFormat()
@@ -16,7 +18,6 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 {
 	VkResult err;
 
-	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceSupportKHR);
 	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceCapabilitiesKHR);
 	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceFormatsKHR);
 	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfacePresentModesKHR);
@@ -25,32 +26,6 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 	GET_DEVICE_PROC_ADDR(m_device, GetSwapchainImagesKHR);
 	GET_DEVICE_PROC_ADDR(m_device, AcquireNextImageKHR);
 	GET_DEVICE_PROC_ADDR(m_device, QueuePresentKHR);
-
-	// Create surface
-#ifdef _WIN32
-	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(in_platformHandle);
-	surfaceCreateInfo.hwnd = reinterpret_cast<HWND>(in_platformWindow);
-	err = vkCreateWin32SurfaceKHR(in_vulkanInstance, &surfaceCreateInfo, nullptr, &m_surface);
-#else
-#ifdef __ANDROID__
-	VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
-	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-	surfaceCreateInfo.window = window;
-	err = vkCreateAndroidSurfaceKHR(instance, &surfaceCreateInfo, NULL, &surface);
-#else
-	VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
-	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-	surfaceCreateInfo.connection = connection;
-	surfaceCreateInfo.window = window;
-	err = vkCreateXcbSurfaceKHR(instance, &surfaceCreateInfo, nullptr, &surface);
-#endif
-#endif
-	if (err)
-	{
-		DEBUGPRINT(vkTools::errorString(err));
-	}
 
 	// Get list of supported surface formats
 	uint32_t formatCount = 0;
@@ -81,6 +56,7 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 	CreateBuffers();
 }
 
+
 VulkanSwapChain::~VulkanSwapChain()
 {
 	for (auto buffer : m_buffers)
@@ -90,8 +66,8 @@ VulkanSwapChain::~VulkanSwapChain()
 	}
 	OutputDebugString("Vulkan: Removing swap chain object's SwapchainKHR\n");
 	fpDestroySwapchainKHR(m_device, m_swapChain, nullptr);
-	OutputDebugString("Vulkan: Removing swap chain object's SurfaceKHR\n");
-	vkDestroySurfaceKHR(m_vulkanInstance, m_surface, nullptr);
+	//OutputDebugString("Vulkan: Removing swap chain object's SurfaceKHR\n");
+	//vkDestroySurfaceKHR(m_vulkanInstance, m_surface, nullptr);
 }
 
 VkResult VulkanSwapChain::NextImage(VkSemaphore in_semPresentIsComplete, uint32_t* inout_currentBufferIdx)
@@ -121,7 +97,7 @@ int VulkanSwapChain::GetBuffersCount() const
 }
 
 void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevice, VkSwapchainKHR in_oldSwapChain,
-                                               uint32_t *in_width, uint32_t *in_height)
+											   uint32_t *in_width, uint32_t *in_height)
 {
 	VkResult err;
 

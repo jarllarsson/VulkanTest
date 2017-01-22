@@ -3,27 +3,6 @@
 #include <vector>
 
 
-// Macro to get a procedure address based on a vulkan instance
-#define GET_INSTANCE_PROC_ADDR(inst, entrypoint)                        \
-{                                                                       \
-    fp##entrypoint = (PFN_vk##entrypoint) vkGetInstanceProcAddr(inst, "vk"#entrypoint); \
-    if (fp##entrypoint == NULL)                                         \
-	{                                                                   \
-        exit(1);                                                        \
-    }                                                                   \
-}
-
-// Macro to get a procedure address based on a vulkan device
-#define GET_DEVICE_PROC_ADDR(dev, entrypoint)                           \
-{                                                                       \
-    fp##entrypoint = (PFN_vk##entrypoint) vkGetDeviceProcAddr(dev, "vk"#entrypoint);   \
-    if (fp##entrypoint == NULL)                                         \
-	{                                                                   \
-        exit(1);                                                        \
-    }                                                                   \
-}
-
-
 class VulkanSwapChain
 {
 public:
@@ -34,9 +13,10 @@ public:
 	};
 
 	VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice in_physicalDevice, VkDevice in_device,
-		            uint32_t* in_width, uint32_t* in_height,
-	                void* in_platformHandle, void* in_platformWindow, 
-	                VkSwapchainKHR in_oldSwapChain = VK_NULL_HANDLE); // TODO: Need to split up, move queue index creation here and use fpGetPhysicalDeviceSurfaceSupportKHR on them
+	                VkSurfaceKHR in_surface,
+	                uint32_t* in_width, uint32_t* in_height,
+	                VkSwapchainKHR in_oldSwapChain = VK_NULL_HANDLE);
+
 
 	~VulkanSwapChain();
 
@@ -71,7 +51,6 @@ private:
 
 
 	// Function pointers
-	PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR; // TODO: Implement usage
 	PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR fpGetPhysicalDeviceSurfaceCapabilitiesKHR;
 	PFN_vkGetPhysicalDeviceSurfaceFormatsKHR fpGetPhysicalDeviceSurfaceFormatsKHR;
 	PFN_vkGetPhysicalDeviceSurfacePresentModesKHR fpGetPhysicalDeviceSurfacePresentModesKHR;

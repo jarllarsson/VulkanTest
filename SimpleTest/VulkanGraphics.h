@@ -51,6 +51,7 @@ private:
 	void     DestroyCommandBuffers();
 
 	uint32_t GetGraphicsQueueInternalIndex() const;
+	void     CreatePresentSurface(void* in_platformHandle, void* in_platformWindow, VkSurfaceKHR* out_surface);
 	VkResult CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device);
 	bool     GetDepthFormat(VkFormat* out_format) const;
 	VkResult CreateCommandPool(VkCommandPool* out_commandPool);
@@ -117,6 +118,9 @@ private:
 	// - Command buffers for resetting image formats after presenting
 	std::vector<VkCommandBuffer> m_postPresentCommandBuffers;
 
+	// Surface for presenting
+	VkObj<VkSurfaceKHR> m_surface;
+
 	// Container for very basic swap chain functionality
 	std::shared_ptr<VulkanSwapChain> m_swapChain;
 
@@ -160,6 +164,8 @@ private:
 	typedef std::unique_ptr<ShaderModuleType> ShaderModulePtr;
 	std::vector<ShaderModulePtr> m_shaderModules;
 
+	// Function pointers
+	PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR;
 
 	// Render size
 	uint32_t m_width, m_height;
