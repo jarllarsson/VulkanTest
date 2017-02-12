@@ -30,10 +30,10 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 	// Get list of supported surface formats
 	uint32_t formatCount = 0;
 	err = fpGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, NULL);
-	if (err) throw ProgramError(std::string("Error when querying surface format count: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Error when querying surface format count: " << vkTools::errorString(err));
 	std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
 	err = fpGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, surfaceFormats.data());
-	if (err) throw ProgramError(std::string("Error when querying surface formats: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Error when querying surface formats: " << vkTools::errorString(err));
 
 	if (formatCount == 1 && surfaceFormats[0].format == VK_FORMAT_UNDEFINED)
 	{
@@ -44,7 +44,7 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 	else 
 	{
 		// Otherwise, return first preferred format
-		if (formatCount < 1) throw ProgramError(std::string("Error, no surface formats available"));
+		ERROR_IF(formatCount < 1, "Error, no surface formats available");
 		m_colorFormat = surfaceFormats[0].format;
 	}
 	m_colorSpace = surfaceFormats[0].colorSpace;
@@ -104,15 +104,15 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 	// Get physical device surface properties and formats
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	err = fpGetPhysicalDeviceSurfaceCapabilitiesKHR(in_physicalDevice, m_surface, &surfaceCapabilities);
-	if (err) throw ProgramError(std::string("Error when querying surface capabilities: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Error when querying surface capabilities: " << vkTools::errorString(err));
 
 	// Get the available present modes on the GPU
 	uint32_t presentModeCount;
 	err = fpGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, NULL);
-	if (err) throw ProgramError(std::string("Error when querying surface present mode count: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Error when querying surface present mode count: " << vkTools::errorString(err));
 	std::vector<VkPresentModeKHR> supportedPresentModes(presentModeCount);
 	err = fpGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, supportedPresentModes.data());
-	if (err) throw ProgramError(std::string("Error when querying surface present modes: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Error when querying surface present modes: " << vkTools::errorString(err));
 
 	// Setup surface extents
 	VkExtent2D swapchainExtent = {};
@@ -182,10 +182,7 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // opaque, no alpha
 
 	err = fpCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapChain);
-	if (err)
-	{
-		throw ProgramError(std::string("Error trying to construct swap chain object: ") + vkTools::errorString(err));
-	}
+	ERROR_IF(err, "Error trying to construct swap chain object: " << vkTools::errorString(err));
 
 	// Destroy old swapchain if we have one
 	if (in_oldSwapChain != VK_NULL_HANDLE)
@@ -206,12 +203,12 @@ void VulkanSwapChain::CreateBuffers()
 
 	uint32_t imageCount;
 	err = fpGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, NULL);
-	if (err) throw ProgramError(std::string("Error when querying swap chain image count: ") + vkTools::errorString(err));
-	if (imageCount < 1) throw ProgramError(std::string("Swap chain image count less than 1: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Error when querying swap chain image count: " << vkTools::errorString(err));
+	ERROR_IF(imageCount < 1, "Swap chain image count less than 1: " << vkTools::errorString(err));
 
 	std::vector<VkImage> bufferImages(imageCount);
 	err = fpGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, bufferImages.data());
-	if (err) throw ProgramError(std::string("Error when querying swap chain images: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Error when querying swap chain images: " << vkTools::errorString(err));
 
 	m_buffers.resize(imageCount);
 	for (uint32_t i = 0; i < m_buffers.size(); i++)
@@ -241,9 +238,6 @@ void VulkanSwapChain::CreateBuffers()
 		colorAttachmentView.image = m_buffers[i].m_image;
 
 		err = vkCreateImageView(m_device, &colorAttachmentView, nullptr, &m_buffers[i].m_imageView);
-		if (err)
-		{
-			throw ProgramError(std::string("Error trying to construct an image view(")+std::to_string(i)+std::string(") for the image buffers: ") + vkTools::errorString(err));
-		}
+		ERROR_IF(err, "Error trying to construct an image view(" << std::to_string(i) << ") for the image buffers: " << vkTools::errorString(err));
 	}
 }

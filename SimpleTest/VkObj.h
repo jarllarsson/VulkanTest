@@ -80,9 +80,9 @@ public:
 	{
 #ifdef _DEBUG
 		if (!m_dbgName.empty())
-			DEBUGPRINT("Vulkan Object: Removing: " + m_dbgName);
+			LOG("Vulkan Object: Removing: " << m_dbgName);
 		else
-			DEBUGPRINT("Vulkan Object: Removing: (unnamed)");
+			LOG("Vulkan Object: Removing: (unnamed)");
 #endif // _DEBUG
 		Clean();
 	}
@@ -106,9 +106,9 @@ public:
 	{
 #ifdef _DEBUG
 		if (!m_dbgName.empty())
-			DEBUGPRINT("Vulkan Object: Replacing: " + m_dbgName);
+			LOG("Vulkan Object: Replacing: " << m_dbgName);
 		else
-			DEBUGPRINT("Vulkan Object: Replacing: (unnamed)");
+			LOG("Vulkan Object: Replacing: (unnamed)");
 #endif // _DEBUG
 		Clean();
 		return &m_obj;

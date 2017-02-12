@@ -1,6 +1,9 @@
 #pragma once
 
 #include <Windows.h>
+#include <string>
+#include <iostream>
+#include <sstream>
 /*#include "ConsoleContext.h"*/
 // =======================================================================================
 //                                      DebugPrint
@@ -12,6 +15,7 @@
 /// # DebugPrint
 /// 
 /// 17-4-2013 Jarl Larsson
+/// 12-2-2017 Simplified, changed to stringstream
 ///---------------------------------------------------------------------------------------
 
 /***************************************************************************/
@@ -21,32 +25,21 @@
 
 
 // Will only print in debug, will replace call in release with "nothing"
-// call like this: DEBUGPRINT(("text"));
-//  std::cout << __FILE__ << " " << __LINE__ << " " << (x) maybe?
-// #ifdef _DEBUG
-static void debugPrint(const std::string& in_str);
-#ifndef FORCE_DISABLE_OUTPUT
-#define DEBUGPRINT(x) debugPrint(x + std::string("\n"))
-#else
-#define DEBUGPRINT(x)
-#endif
-void debugPrint(const std::string& in_str)
-{
-	OutputDebugStringA(in_str.c_str());
-	// ConsoleContext::addMsg(string(msg), false); not used in this app
-}
+// Uses do while to expand into a regular statement instead of a compound statement
+// allowing for the following:
+// if(foo)
+//   LOG(x);
+// else
+//   bar(x);
 
-
-// Warning version
-// #ifdef _DEBUG
-static void debugWarn(const std::string& in_str);
 #ifndef FORCE_DISABLE_OUTPUT
-#define DEBUGWARNING(x) debugWarn x
+#define LOG(x) \
+do { \
+std::ostringstream _o_ss_dbg; \
+_o_ss_dbg << "LOG: " << __FILE__ << " ln: " << __LINE__ << " " << x << "\n"; \
+OutputDebugStringA(_o_ss_dbg.str().c_str()); \
+} while (0)
+
 #else
-#define DEBUGWARNING(x)
+#define LOG(x)
 #endif
-void debugWarn(const std::string& in_str)
-{
-	OutputDebugStringA((in_str.c_str()));
-	MessageBoxA(NULL, (in_str.c_str()), "Warning!", MB_ICONWARNING);
-}

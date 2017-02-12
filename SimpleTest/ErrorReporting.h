@@ -3,13 +3,11 @@
 #include <exception>
 #include <string>
 #include <assert.h>
+#include <sstream>
 
 struct ProgramError : std::exception
 {
-	ProgramError(const std::string& in_errorMessage) : m_errorMsg("When: " + in_errorMessage) { 
-#ifdef _DEBUG
-		assert(false);
-#endif // _DEBUG
+	ProgramError(const std::ostringstream& in_errorMessage) : m_errorMsg(in_errorMessage.str()) { 
 	}
 	virtual ~ProgramError() throw() {};
 
@@ -17,3 +15,36 @@ struct ProgramError : std::exception
 
 	std::string m_errorMsg;
 };
+
+// In debug build, assert false, in release throw exception
+#ifdef _DEBUG
+
+#define ERROR_IF(x, msg) \
+do { \
+if (x) \
+{ \
+	std::ostringstream _o_ss_err; \
+	_o_ss_err << "ERROR: " << __FILE__ << " ln: " << __LINE__ << " " << msg << "\n"; \
+	OutputDebugStringA(_o_ss_err.str().c_str()); \
+	assert(false); \
+} \
+} while (0)
+
+#else
+
+#define ERROR_IF(x, msg) \
+do { \
+if (x) \
+{ \
+	std::ostringstream _o_ss_err; \
+	_o_ss_err << "ERROR: " << msg << "\n"; \
+	OutputDebugStringA(_o_ss_err.str().c_str()); \
+	throw ProgramError(_o_ss_err); \
+} \
+} while (0)
+
+#endif
+
+
+
+#define ERROR_ALWAYS(msg) ERROR_IF(true, msg)

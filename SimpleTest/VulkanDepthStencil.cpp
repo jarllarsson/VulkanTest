@@ -67,22 +67,22 @@ void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t 
 
 	// Create the image
 	err = vkCreateImage(m_device, &imageCreationInfo, nullptr, out_depthStencil.m_image.Replace());
-	if (err) throw ProgramError(std::string("Create depth stencil image: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Create depth stencil image: " << vkTools::errorString(err));
 
 	// Allocate memory for the image on the gpu
 	vkGetImageMemoryRequirements(m_device, out_depthStencil.m_image, &memoryRequirements);
 	memoryAllocInfo.allocationSize = memoryRequirements.size;
 	m_memory->GetMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &memoryAllocInfo.memoryTypeIndex);
 	err = vkAllocateMemory(m_device, &memoryAllocInfo, nullptr, out_depthStencil.m_gpuMem.Replace());
-	if (err) throw ProgramError(std::string("Allocate depth stencil memory on GPU: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Allocate depth stencil memory on GPU: " << vkTools::errorString(err));
 
 	// Bind the image to the allocated memory
 	err = vkBindImageMemory(m_device, out_depthStencil.m_image, out_depthStencil.m_gpuMem, 0);
-	if (err) throw ProgramError(std::string("Bind depth stencil image to GPU memory: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Bind depth stencil image to GPU memory: " << vkTools::errorString(err));
 
 	// Set up our view to the image
 	depthStencilViewCreationInfo.image = out_depthStencil.m_image;
 	err = vkCreateImageView(m_device, &depthStencilViewCreationInfo, nullptr, out_depthStencil.m_imageView.Replace());
-	if (err) throw ProgramError(std::string("Create depth stencil image view: ") + vkTools::errorString(err));
+	ERROR_IF(err, "Create depth stencil image view: " << vkTools::errorString(err));
 }
 

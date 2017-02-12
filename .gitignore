@@ -12,3 +12,5 @@
 .vs
 /obj
 *.opendb
+*.ipdb
+*.iobj
