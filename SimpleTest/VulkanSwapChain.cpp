@@ -29,7 +29,7 @@ VulkanSwapChain::VulkanSwapChain(VkInstance in_vulkanInstance, VkPhysicalDevice 
 
 	// Get list of supported surface formats
 	uint32_t formatCount = 0;
-	err = fpGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, NULL);
+	err = fpGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, nullptr);
 	ERROR_IF(err, "Error when querying surface format count: " << vkTools::errorString(err));
 	std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
 	err = fpGetPhysicalDeviceSurfaceFormatsKHR(in_physicalDevice, m_surface, &formatCount, surfaceFormats.data());
@@ -79,7 +79,7 @@ VkResult VulkanSwapChain::Present(VkQueue in_queue, uint32_t in_currentBufferIdx
 {
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentInfo.pNext = NULL;
+	presentInfo.pNext = nullptr;
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &m_swapChain;
 	presentInfo.pImageIndices = &in_currentBufferIdx;
@@ -108,7 +108,7 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 
 	// Get the available present modes on the GPU
 	uint32_t presentModeCount;
-	err = fpGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, NULL);
+	err = fpGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, nullptr);
 	ERROR_IF(err, "Error when querying surface present mode count: " << vkTools::errorString(err));
 	std::vector<VkPresentModeKHR> supportedPresentModes(presentModeCount);
 	err = fpGetPhysicalDeviceSurfacePresentModesKHR(in_physicalDevice, m_surface, &presentModeCount, supportedPresentModes.data());
@@ -164,7 +164,7 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 	// Set up the construction struct
 	VkSwapchainCreateInfoKHR createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	createInfo.pNext = NULL;
+	createInfo.pNext = nullptr;
 	createInfo.surface = m_surface;
 	createInfo.minImageCount = minImageCount; // buffering size
 	createInfo.imageFormat = m_colorFormat;
@@ -175,7 +175,7 @@ void VulkanSwapChain::SetupSurfaceAndSwapChain(VkPhysicalDevice in_physicalDevic
 	createInfo.imageArrayLayers = 1; // not stereoscopic
 	createInfo.queueFamilyIndexCount = VK_SHARING_MODE_EXCLUSIVE;
 	createInfo.queueFamilyIndexCount = 0;
-	createInfo.pQueueFamilyIndices = NULL;
+	createInfo.pQueueFamilyIndices = nullptr;
 	createInfo.presentMode = swapchainPresentMode;
 	createInfo.oldSwapchain = in_oldSwapChain;
 	createInfo.clipped = true; // allow clip pixels
@@ -202,7 +202,7 @@ void VulkanSwapChain::CreateBuffers()
 	VkResult err;
 
 	uint32_t imageCount;
-	err = fpGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, NULL);
+	err = fpGetSwapchainImagesKHR(m_device, m_swapChain, &imageCount, nullptr);
 	ERROR_IF(err, "Error when querying swap chain image count: " << vkTools::errorString(err));
 	ERROR_IF(imageCount < 1, "Swap chain image count less than 1: " << vkTools::errorString(err));
 
@@ -215,7 +215,7 @@ void VulkanSwapChain::CreateBuffers()
 	{
 		VkImageViewCreateInfo colorAttachmentView = {};
 		colorAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		colorAttachmentView.pNext = NULL;
+		colorAttachmentView.pNext = nullptr;
 		colorAttachmentView.format = m_colorFormat;
 		colorAttachmentView.components = {
 			VK_COMPONENT_SWIZZLE_R,

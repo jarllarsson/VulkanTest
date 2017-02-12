@@ -37,7 +37,8 @@
 do { \
 std::ostringstream _o_ss_dbg; \
 _o_ss_dbg << "LOG: " << __FILE__ << " ln: " << __LINE__ << " " << x << "\n"; \
-OutputDebugStringA(_o_ss_dbg.str().c_str()); \
+OutputDebugString(_o_ss_dbg.str().c_str()); \
+std::cout << _o_ss_dbg.str(); \
 } while (0)
 
 #else

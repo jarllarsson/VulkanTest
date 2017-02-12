@@ -43,15 +43,10 @@ public:
 
 
 	// Constructs (needs allocation first)
-	void ConstructSwapchainDepthStencilInitializationCommandBuffer(VkCommandBuffer& inout_buffer, 
-		std::shared_ptr<VulkanSwapChain> in_swapChain, VulkanDepthStencil& in_depthStencil);
-
 	void ConstructDrawCommandBuffer(std::vector<VkCommandBuffer>& inout_buffers, const std::vector<VkFramebuffer>& in_frameBuffers,
 		DrawCommandBufferDependencies& in_dependencyObjects,
 		const VkRenderPass& in_renderPass, const VkClearColorValue& in_clearColor,
 		int in_width, int in_height);
-
-	void ConstructPostPresentCommandBuffer(std::vector<VkCommandBuffer>& inout_buffers, DrawCommandBufferDependencies& in_dependencyObjects);
 
 
 private:

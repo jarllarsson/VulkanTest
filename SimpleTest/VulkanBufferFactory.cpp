@@ -32,6 +32,8 @@ void VulkanBufferFactory::CreateTriangle(VulkanMesh& out_mesh) const
 
 	// Buffers
 
+	// TODO: staging buffers
+
 	// Create vertex buffer
 	if (CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		vertexBufferByteSize,
@@ -89,13 +91,13 @@ bool VulkanBufferFactory::CreateBuffer(VkBufferUsageFlags in_usage,
 	// Creation information structs
 	static VkMemoryAllocateInfo memoryAllocationInfo = {};
 	memoryAllocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memoryAllocationInfo.pNext = NULL;
+	memoryAllocationInfo.pNext = nullptr;
 	memoryAllocationInfo.allocationSize = 0; // is set later when we have the memory requirements
 	memoryAllocationInfo.memoryTypeIndex = 0;
 
 	VkBufferCreateInfo bufCreateInfo = {};
 	bufCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufCreateInfo.pNext = NULL;
+	bufCreateInfo.pNext = nullptr;
 	bufCreateInfo.usage = in_usage;
 	bufCreateInfo.size = in_size;
 	bufCreateInfo.flags = 0;

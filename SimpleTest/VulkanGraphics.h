@@ -56,10 +56,9 @@ private:
 	bool     GetDepthFormat(VkFormat* out_format) const;
 	VkResult CreateCommandPool(VkCommandPool* out_commandPool);
 	void     AllocateRenderCommandBuffers();
-	void     SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer);
 	VkResult CreatePipelineCache();
 	void     CreateFrameBuffers();
-	void     CreateSemaphores();
+	void     CreateSemaphoresAndFences();
 
 	VkDescriptorSetLayoutBinding    CreateDescriptorSetLayoutBinding(uint32_t in_descriptorBindingId, VkDescriptorType in_type, VkShaderStageFlags in_shaderStageFlags);
 	VkDescriptorSetLayoutCreateInfo CreateDescriptorSetLayoutCreateInfo(const std::vector<VkDescriptorSetLayoutBinding>& in_bindings);
@@ -76,8 +75,6 @@ private:
 	// TODO: Maybe move out to factory?:
 	void CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout);
 	void CreateTriangleProgramPipelineAndLoadShaders();
-
-
 
 
 	// Data
@@ -99,8 +96,7 @@ private:
 	uint32_t m_graphicsQueueIdx;
 	// Handle to the device command buffer graphics queue
 	VkQueue m_queue;
-	// Color and depth buffer format
-	VkFormat m_colorformat;
+	// Depth buffer format
 	VkFormat m_depthFormat;
 	// Depth stencil object
 	VulkanDepthStencil m_depthStencil;
@@ -115,8 +111,6 @@ private:
 	// They each store separate references to frame buffer id's
 	// - Command buffers for rendering
 	std::vector<VkCommandBuffer> m_drawCommandBuffers;
-	// - Command buffers for resetting image formats after presenting
-	std::vector<VkCommandBuffer> m_postPresentCommandBuffers;
 
 	// Surface for presenting
 	VkObj<VkSurfaceKHR> m_surface;
@@ -153,16 +147,17 @@ private:
 	VkObj<VkSemaphore> m_presentComplete;
 	VkObj<VkSemaphore> m_renderComplete;
 
+	// Fences
+	// Used to check the completion of queue operations (e.g. command buffer execution)
+	typedef VkObj<VkFence>             FenceType;
+	typedef std::unique_ptr<FenceType> FencePtr;
+	std::vector<FencePtr> m_waitFences;
+
 	// Descriptor sets
 	VkDescriptorSet                 m_descriptorSetPerFrame; // All descriptors to be used per frame
 	VkObj<VkDescriptorSetLayout>    m_descriptorSetLayoutPerFrame_TriangleProgram;
 	// Descriptor set pool
 	VkObj<VkDescriptorPool>  m_descriptorPool;
-
-	// Shaders created (we need to store these for proper cleanup)
-	typedef VkObj<VkShaderModule>             ShaderModuleType;
-	typedef std::unique_ptr<ShaderModuleType> ShaderModulePtr;
-	std::vector<ShaderModulePtr> m_shaderModules;
 
 	// Function pointers
 	PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR;

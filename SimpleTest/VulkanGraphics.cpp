@@ -38,6 +38,12 @@
 #define REGISTER_VKOBJ(x, d, func, dbg) x(d, func)
 #endif // _DEBUG
 
+namespace
+{
+	// types
+	typedef VkObj<VkShaderModule>             ShaderModuleType;
+	typedef std::unique_ptr<ShaderModuleType> ShaderModulePtr;
+}
 
 
 
@@ -62,7 +68,7 @@ VulkanGraphics::VulkanGraphics(HWND in_hWnd, HINSTANCE in_hInstance, uint32_t in
 	//////////////////////////////////////////////////////////////////////////
 	, m_depthStencil(m_device)
 	, m_graphicsQueueIdx()
-	, m_postPresentCommandBuffers(VK_NULL_HANDLE)
+	//, m_postPresentCommandBuffers(VK_NULL_HANDLE)
 	, m_currentFrameBufferIdx(0)
 	, m_width(in_width)
 	, m_height(in_height)
@@ -85,8 +91,8 @@ void VulkanGraphics::Render()
 {
 	if (!m_device)
 		return;
-	vkDeviceWaitIdle(m_device);
 	Draw();
+	// Flush device to make sure all resources can be freed 
 	vkDeviceWaitIdle(m_device);
 }
 
@@ -163,8 +169,6 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Get the graphics queue
 	vkGetDeviceQueue(m_device, m_graphicsQueueIdx, 0, &m_queue);
 
-	// Set color format
-	m_colorformat = VK_FORMAT_B8G8R8A8_UNORM;
 	// Get and set depth format
 	if (!GetDepthFormat(&m_depthFormat)) ERROR_ALWAYS("Set up the depth format.");
 
@@ -174,7 +178,8 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 
 	if (ENABLE_VALIDATION)
 	{
-		vkDebug::setupDebugging(m_vulkanInstance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, NULL);
+		// TODO: own callback, see how the messagecallback is setup inside this method:
+		vkDebug::setupDebugging(m_vulkanInstance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, nullptr);
 	}
 
 	// Create command pool
@@ -187,18 +192,8 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Setup depth stencil
 	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_depthStencil);
 
-	// Command buffer for initializing the depth stencil and swap chain 
-	// images to the right format on the gpu
-	VkCommandBuffer swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
-	err = m_commandBufferFactory->AllocateCommandBuffer(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, swapchainDepthStencilSetupCommandBuffer);
-	ERROR_IF(err, "Create a setup command buffer for the swapchain and depth stencil: " << vkTools::errorString(err));
-	m_commandBufferFactory->ConstructSwapchainDepthStencilInitializationCommandBuffer(
-		swapchainDepthStencilSetupCommandBuffer,
-		m_swapChain,
-		m_depthStencil);
-
 	// Create the render pass
-	err = m_renderPassFactory->CreateStandardRenderPass(m_colorformat, m_depthFormat, *m_renderPass.Replace());
+	err = m_renderPassFactory->CreateStandardRenderPass(m_swapChain->GetColorFormat(), m_depthFormat, *m_renderPass.Replace());
 	ERROR_IF(err, "Create render pass: " << vkTools::errorString(err));
 
 	// Create a pipeline cache
@@ -208,19 +203,14 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// Setup frame buffer
 	CreateFrameBuffers();
 
-	// Submit the setup command buffer to the queue, and then free it (we only need it once, here)
-	SubmitCommandBufferAndAppendWaitToQueue(swapchainDepthStencilSetupCommandBuffer);
-	vkFreeCommandBuffers(m_device, m_commandPool, 1, &swapchainDepthStencilSetupCommandBuffer);
-	swapchainDepthStencilSetupCommandBuffer = VK_NULL_HANDLE;
-
 	// Note: Other command buffers if needed should then be allocated >here<
 
 	// ================================================
 	// 3. Prepare application specific usage of Vulkan
 	// ================================================
 
-	// Create semaphores
-	CreateSemaphores();
+	// Create semaphores and fences
+	CreateSemaphoresAndFences();
 
 	// Create triangle mesh
 	m_triangleMesh = std::make_shared<VulkanMesh>(m_device);
@@ -265,30 +255,9 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 		drawInfo, m_renderPass, 
 		clearCol, m_width, m_height);
 
-	// Also set up commandbuffers for post-present behaviour (resetting image layouts for instance)
-	m_commandBufferFactory->ConstructPostPresentCommandBuffer(m_postPresentCommandBuffers, drawInfo);
 
 
 	// When all the above is implemented we can create the render method that will be called each frame
-
-	// -------------------------------------------------------------------------------------------------
-	// About ConstructSwapchainDepthStencilInitializationCommandBuffer:
-	// The vulkan examples uses an initial command buffer to do some kind of setting
-	// before actual rendering. It relates to changing of image layouts.
-	// The setup-commandbuffer is begun created before the ordinary frame commandbuffers
-	// it is written to with image layout commands for _swap chain_ and for the _depth stencil_.
-	// It's creation is then ended in flush setup-commandbuffer and it is then submitted
-	// to the allocated vulkan queue and then a wait for that queue is issued. The setup-commandbuffer
-	// is then removed and not used again.
-
-	// It seems like it is used to initialize the image layouts for the depth stencil image to VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	// and the buffer images to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR. Both from an initial state of 
-	// VK_IMAGE_LAYOUT_UNDEFINED (default, can be used if we're not in need of initializing the image data on CPU, with an existing image for example).
-	// Is this really necessary? Yes it is!
-	// We need to use a command buffer to initialize the images to their correct image layout.
-	// We'll actually have to do the same with images for textures.
-	// -------------------------------------------------------------------------------------------------
-
 }
 
 VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
@@ -296,7 +265,7 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 	std::string name = "vulkanTestApp";
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO; // Mandatory
-	appInfo.pNext = NULL;                               // Mandatory
+	appInfo.pNext = nullptr;                               // Mandatory
 	appInfo.pApplicationName = name.c_str();
 	appInfo.pEngineName = name.c_str();
 	appInfo.applicationVersion = 1;
@@ -310,7 +279,7 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 	// Set up and create the Vulkan main instance
 	VkInstanceCreateInfo instanceCreateInfo = {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO; // Mandatory
-	instanceCreateInfo.pNext = NULL;                                   // Mandatory
+	instanceCreateInfo.pNext = nullptr;                                   // Mandatory
 	//instanceCreateInfo.flags = 0;                                      // Mandatory
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 	// Next, set up what extensions to enable
@@ -343,11 +312,17 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 void VulkanGraphics::Destroy()
 {
 	// General
+
+	// TODO: Replace remaining with VkObjs
+
 	OutputDebugString("Vulkan: Removing swap chain\n");
 	m_swapChain.reset();
 
 	OutputDebugString("Vulkan: Removing command buffers\n");
 	DestroyCommandBuffers();
+
+	OutputDebugString("Vulkan: Removing renderpass\n");
+	m_renderPass.Reset(nullptr);
 
 	OutputDebugString("Vulkan: Removing frame buffers\n");
 	for (uint32_t i = 0; i < static_cast<uint32_t>(m_frameBuffers.size()); i++)
@@ -355,6 +330,7 @@ void VulkanGraphics::Destroy()
 		vkDestroyFramebuffer(m_device, m_frameBuffers[i], nullptr);
 	}
 
+	// Probably needs to be vkobj as well:
 	if (ENABLE_VALIDATION)
 	{
 		vkDebug::freeDebugCallback(m_vulkanInstance);
@@ -368,8 +344,6 @@ void VulkanGraphics::DestroyCommandBuffers()
 		vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_drawCommandBuffers.size()), m_drawCommandBuffers.data());
 	else
 		OutputDebugString("Vulkan: Warning, can't remove draw buffer as it has not been created\n");
-	OutputDebugString("Vulkan: Removing draw post present command buffers\n");
-	vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_postPresentCommandBuffers.size()), m_postPresentCommandBuffers.data());
 }
 
 
@@ -380,7 +354,7 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 	uint32_t queueCount = 0;
 	// Report properties of the queues of the specified physical device
 	// Note that we first must retrieve the size of the queue!
-	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueCount, NULL);
+	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueCount, nullptr);
 	ERROR_IF(queueCount <= 0, "Get queues on selected GPU");
 
 	// When we have the count of the available queues, we can create a vector of that size and
@@ -426,7 +400,7 @@ void VulkanGraphics::CreatePresentSurface(void* in_platformHandle, void* in_plat
 	VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
 	surfaceCreateInfo.window = window;
-	err = vkCreateAndroidSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, NULL, out_surface);
+	err = vkCreateAndroidSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
 #else
 	VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
@@ -449,7 +423,7 @@ VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDev
 	std::array<float, 1> queuePriorities = { 0.0f };
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
 	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.pNext = NULL;
+	queueCreateInfo.pNext = nullptr;
 	queueCreateInfo.queueFamilyIndex = in_graphicsQueueIdx;
 	queueCreateInfo.queueCount = 1; // one queue for now
 	queueCreateInfo.pQueuePriorities = queuePriorities.data();
@@ -458,8 +432,8 @@ VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDev
 	std::vector<const char*> enabledExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.pNext = NULL;
-	deviceCreateInfo.pEnabledFeatures = NULL;
+	deviceCreateInfo.pNext = nullptr;
+	deviceCreateInfo.pEnabledFeatures = nullptr;
 	// Set queue(s) to device
 	deviceCreateInfo.queueCreateInfoCount = 1; // one queue for now
 	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
@@ -511,10 +485,7 @@ VkResult VulkanGraphics::CreateCommandPool(VkCommandPool* out_commandPool)
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 
-	// TODO: This index is only tested to VK_QUEUE_GRAPHICS_BIT,
-	// but I guess it should also be tested on whether it supports presenting?
-	// If so, should be done when surface has been created in the swap chain object,
-	// using vkGetPhysicalDeviceSurfaceSupportKHR:
+	// This index is tested to VK_QUEUE_GRAPHICS_BIT and whether it supports present (see GetGraphicsQueueInternalIndex):
 	cmdPoolInfo.queueFamilyIndex = m_graphicsQueueIdx;
 
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -535,30 +506,6 @@ void VulkanGraphics::AllocateRenderCommandBuffers()
 	m_drawCommandBuffers.resize(count);
 	VkResult err = m_commandBufferFactory->AllocateCommandBuffers(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_drawCommandBuffers);
 	ERROR_IF(err, "Allocate command buffers from pool: " << vkTools::errorString(err));
-
-	// Create post-present command buffers, they are used to restore the image layout after presenting
-	m_postPresentCommandBuffers.resize(count);
-	err = m_commandBufferFactory->AllocateCommandBuffers(m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, m_postPresentCommandBuffers);
-	ERROR_IF(err, "Allocate post-present command buffer from pool: " << vkTools::errorString(err));
-}
-
-void VulkanGraphics::SubmitCommandBufferAndAppendWaitToQueue(VkCommandBuffer in_commandBuffer)
-{
-	// Submit a command buffer to the main queue, and also append a wait
-	VkResult err;
-
-	if (in_commandBuffer == VK_NULL_HANDLE) return;
-
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &in_commandBuffer;
-
-	err = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
-	ERROR_IF(err, "Submit command buffer: " << vkTools::errorString(err));
-
-	err = vkQueueWaitIdle(m_queue);
-	ERROR_IF(err, "Submit wait to queue: " << vkTools::errorString(err));
 }
 
 VkResult VulkanGraphics::CreatePipelineCache()
@@ -590,7 +537,7 @@ void VulkanGraphics::CreateFrameBuffers()
 
 		VkFramebufferCreateInfo frameBufferCreateInfo = {};
 		frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		frameBufferCreateInfo.pNext = NULL;
+		frameBufferCreateInfo.pNext = nullptr;
 		frameBufferCreateInfo.renderPass = m_renderPass;
 		frameBufferCreateInfo.attachmentCount = 2;
 		frameBufferCreateInfo.pAttachments = attachments; // attach the image view and the depthstencil view
@@ -603,17 +550,40 @@ void VulkanGraphics::CreateFrameBuffers()
 	}
 }
 
-void VulkanGraphics::CreateSemaphores()
+void VulkanGraphics::CreateSemaphoresAndFences()
 {
+	// Semaphores are GPU-GPU syncs and are used to order queue submits. They are reset automatically after a completed wait.
+	// Fences are GCPU-CPU syncs and can only be waited on and reset on the CPU
+
 	VkResult err;
+	// Semaphores (Used for correct command ordering)
 	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
 	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	semaphoreCreateInfo.pNext = NULL;
+	semaphoreCreateInfo.pNext = nullptr;
 
+	// Semaphore used to ensures that image presentation is complete before starting to submit again
 	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, m_presentComplete.Replace());
 	ERROR_IF(err, "Creating wait semaphore for present-complete: " << vkTools::errorString(err));
+	// Semaphore used to ensures that all commands submitted have been finished before submitting the image to the queue
 	err = vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, m_renderComplete.Replace());
 	ERROR_IF(err, "Creating signal semaphore for render-complete: " << vkTools::errorString(err));
+
+	// Fences (Used to check draw command buffer completion)
+	VkFenceCreateInfo fenceCreateInfo = {};
+	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	// Create in signaled state so we don't wait on first render of each command buffer
+	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	m_waitFences.resize(m_drawCommandBuffers.size());
+	for (auto& pFence : m_waitFences)
+	{
+		pFence = std::make_unique<FenceType>(m_device, vkDestroyFence
+#ifdef _DEBUG
+			, std::string("Fence")
+#endif
+			);
+		err = vkCreateFence(m_device, &fenceCreateInfo, nullptr, pFence->Replace());
+		ERROR_IF(err, "Creating wait fence for waiting for draw buffer completion: " << vkTools::errorString(err));
+	}
 }
 
 VkDescriptorSetLayoutBinding VulkanGraphics::CreateDescriptorSetLayoutBinding(uint32_t in_descriptorBindingId,
@@ -632,7 +602,7 @@ VkDescriptorSetLayoutCreateInfo VulkanGraphics::CreateDescriptorSetLayoutCreateI
 {
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = NULL;
+	descriptorSetLayoutCreateInfo.pNext = nullptr;
 	descriptorSetLayoutCreateInfo.pBindings = in_bindings.data();
 	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(in_bindings.size());
 	return descriptorSetLayoutCreateInfo;
@@ -701,7 +671,7 @@ void VulkanGraphics::CreateTriangleProgramDescriptorSetLayout()
 	};
 	VkDescriptorSetLayoutCreateInfo descriptorLayout = CreateDescriptorSetLayoutCreateInfo(setLayoutBindings);
 
-	VkResult err = vkCreateDescriptorSetLayout(m_device, &descriptorLayout, NULL, m_descriptorSetLayoutPerFrame_TriangleProgram.Replace());
+	VkResult err = vkCreateDescriptorSetLayout(m_device, &descriptorLayout, nullptr, m_descriptorSetLayoutPerFrame_TriangleProgram.Replace());
 	ERROR_IF(err, "Create descriptor set layout: " << vkTools::errorString(err));
 }
 
@@ -723,7 +693,7 @@ void VulkanGraphics::CreateTriangleProgramDescriptorPool()
 	// We could have one pool per thread to allow for per thread allocation of descriptors
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.pNext = NULL;
+	descriptorPoolCreateInfo.pNext = nullptr;
 	descriptorPoolCreateInfo.poolSizeCount = 1;
 	descriptorPoolCreateInfo.pPoolSizes = typeCounts;
 	descriptorPoolCreateInfo.maxSets = 1; // The max number of descriptor sets that can be created. (Requesting more results in an error)
@@ -766,47 +736,37 @@ void VulkanGraphics::Draw()
 
 	// Get next swap chain image (backbuffer flip)
 	err = m_swapChain->NextImage(m_presentComplete, &m_currentFrameBufferIdx);
-	assert(!err);
+	ERROR_IF(err, "Swap chain get next image");
 
+	// Use a fence to wait until the command buffer has finished execution before using it again
+	err = vkWaitForFences(m_device, 1, &(*m_waitFences[m_currentFrameBufferIdx].get()), VK_TRUE, UINT64_MAX);
+	ERROR_IF(err, "Fence wait");
+	err = vkResetFences(m_device, 1, &(*m_waitFences[m_currentFrameBufferIdx].get()));
+	ERROR_IF(err, "Reset fence");
 
-	// Submit the post-present command buffer
-	// Submit to the queue
+	// Pipeline stage at which the queue submission will wait (via pWaitSemaphores)
+	VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	// The submit info structure specifies a command buffer queue submission batch
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &m_postPresentCommandBuffers[m_currentFrameBufferIdx]; // use post present commandbuffer for current frame buffer
+	submitInfo.pWaitDstStageMask = &waitStageMask;									// Pointer to the list of pipeline stages that the semaphore waits will occur at
+	submitInfo.pWaitSemaphores = &m_presentComplete;							    // Semaphore(s) to wait upon before the submitted command buffer starts executing
+	submitInfo.waitSemaphoreCount = 1;												// One wait semaphore																				
+	submitInfo.pSignalSemaphores = &m_renderComplete;						        // Semaphore(s) to be signaled when command buffers have completed
+	submitInfo.signalSemaphoreCount = 1;											// One signal semaphore
+	submitInfo.pCommandBuffers = &m_drawCommandBuffers[m_currentFrameBufferIdx];	// Command buffers(s) to execute in this batch (submission)
+	submitInfo.commandBufferCount = 1;												// One command buffer
 
-	err = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE);
-	assert(!err);
+	// Submit to the graphics queue passing a wait fence
+	err = vkQueueSubmit(m_queue, 1, &submitInfo, *m_waitFences[m_currentFrameBufferIdx]);
+	ERROR_IF(err, "Draw queue submit");
 
-	err = vkQueueWaitIdle(m_queue); // wait until done
-	assert(!err);
-
-	// Submit info for draw
-	// Contains list of command buffers and semaphores
-	// TODO: Maybe only need to do this once??
-	submitInfo = {};
-	VkPipelineStageFlags pipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.pWaitDstStageMask = &pipelineStages;
-	// The wait semaphore ensures that image has been presented before new commandbuffer is submitted
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &m_presentComplete;
-	submitInfo.commandBufferCount = 1; // only have one commandbuffer atm (send along vector::data, below, if we have more than one commandbuffer)
-	submitInfo.pCommandBuffers = &m_drawCommandBuffers[m_currentFrameBufferIdx]; // use draw commandbuffer for current frame buffer
-	// The signal semaphore is used during presentation of the queue to make sure that image is rendered after
-	// all commandbuffers are submitted
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &m_renderComplete;
-
-	// Submit to Vulkan graphics queue (executes command buffers)
-	err = vkQueueSubmit(m_queue, 1, &submitInfo, 
-		VK_NULL_HANDLE); // optional fence that is signaled when all commandbuffers in this submit is done. Not needed here atm
-	assert(!err);
-
+	// Present the current buffer to the swap chain
+	// Pass the semaphore signaled by the command buffer submission from the submit info as the wait semaphore for swap chain presentation
+	// This ensures that the image is not presented to the windowing system until all commands have been submitted
 	// Present the queue (draws image)
 	err = m_swapChain->Present(m_queue, m_currentFrameBufferIdx, m_renderComplete);
-	assert(!err);
+	ERROR_IF(err, "Swapchain present");
 }
 
 void VulkanGraphics::CreatePipelineLayout(const VkDescriptorSetLayout& in_descriptorSetLayout, VkPipelineLayout& out_pipelineLayout)
@@ -818,7 +778,7 @@ void VulkanGraphics::CreatePipelineLayout(const VkDescriptorSetLayout& in_descri
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.pNext = NULL;
+	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
 	pipelineLayoutCreateInfo.pSetLayouts = &in_descriptorSetLayout;
 
@@ -858,6 +818,7 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
 	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
 
 	// Blend state setting (no blending)
 	VkPipelineColorBlendStateCreateInfo blendStateCreateInfo = {};
@@ -902,7 +863,7 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	// Multi sampling state (disabled)
 	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
 	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampleStateCreateInfo.pSampleMask = NULL;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
 	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT; // disabled
 
 	// Load shaders
@@ -915,11 +876,12 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	shaderStagesCreateInfo[0] = VulkanShaderLoader::LoadShaderSPIRV("./../shaders/triangle.vert.spv", "main", m_device, VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStagesCreateInfo[1] = VulkanShaderLoader::LoadShaderSPIRV("./../shaders/triangle.frag.spv", "main", m_device, VK_SHADER_STAGE_FRAGMENT_BIT);
 #endif
-	// Store shader modules
+	// Store shader modules until after pipeline creation for proper cleanup
+	std::vector<ShaderModulePtr> shaderModules;
 	for (auto& shader : shaderStagesCreateInfo)
 	{
-
-		m_shaderModules.push_back(std::make_unique<ShaderModuleType>(m_device, vkDestroyShaderModule, 
+		LOG("Storing: ShaderModule");
+		shaderModules.push_back(std::make_unique<ShaderModuleType>(m_device, vkDestroyShaderModule, 
 #ifdef _DEBUG
 			std::string("ShaderModule"), 
 #endif
@@ -929,7 +891,7 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	// Vertex input state (use our simple vertex layout with position and color for this pipeline)
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputStateCreateInfo.pNext = NULL;
+	vertexInputStateCreateInfo.pNext = nullptr;
 	vertexInputStateCreateInfo.vertexBindingDescriptionCount = static_cast<uint32_t>(m_simpleVertexLayout->m_bindingDescriptions.size());
 	vertexInputStateCreateInfo.pVertexBindingDescriptions = m_simpleVertexLayout->m_bindingDescriptions.data();
 	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(m_simpleVertexLayout->m_attributeDescriptions.size());
@@ -951,4 +913,7 @@ void VulkanGraphics::CreateTriangleProgramPipelineAndLoadShaders()
 	// Create the pipeline
 	err = vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineCreateInfo, nullptr, m_pipeline_TriangleProgram.Replace());
 	ERROR_IF(err, "Create graphics pipeline: " << vkTools::errorString(err));
+
+	// Shader modules can be destroyed after pipeline has been set up
+	shaderModules.clear();
 }

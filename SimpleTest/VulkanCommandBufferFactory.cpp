@@ -34,34 +34,6 @@ VkResult VulkanCommandBufferFactory::AllocateCommandBuffers(VkCommandPool in_com
 	return vkAllocateCommandBuffers(m_device, &createInfo, out_buffers.data());
 }
 
-// Set up swap chain and depth stencil on GPU
-void VulkanCommandBufferFactory::ConstructSwapchainDepthStencilInitializationCommandBuffer(
-	VkCommandBuffer& inout_buffer
-	, std::shared_ptr<VulkanSwapChain> in_swapChain
-	, VulkanDepthStencil& in_depthStencil)
-{
-	// Commandbuffer that initializes the swap chain and depth stencil to the correct image layouts
-	VkCommandBufferBeginInfo cmdBufInfo = {};
-	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-	VkResult err = vkBeginCommandBuffer(inout_buffer, &cmdBufInfo);
-	ERROR_IF(err, "Begin swapchain's depthstencil-initialization command buffer: " << vkTools::errorString(err));
-
-	// Swap chain set up on GPU
-	std::vector<VulkanSwapChain::SwapChainBuffer>& buffers = in_swapChain->GetBuffers();
-	for (auto buf : buffers)
-	{
-		AddImageLayoutChangeToCommandBuffer(inout_buffer, buf.m_image, VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR); // image layout: old, new
-	}
-
-	// Depth stencil set up on GPU
-	AddImageLayoutChangeToCommandBuffer(inout_buffer, in_depthStencil.m_image, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL); // image layout: old, new
-
-	err = vkEndCommandBuffer(inout_buffer);
-	ERROR_IF(err, "End swapchain's depthstencil-initialization command buffer: " << vkTools::errorString(err));
-}
 
 // Constructs command buffers for drawing to target frame buffers
 void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkCommandBuffer>& inout_buffers, const std::vector<VkFramebuffer>& in_targetFrameBuffers, 
@@ -84,7 +56,7 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 
 	VkCommandBufferBeginInfo cmdBufInfo = {};
 	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	cmdBufInfo.pNext = NULL;
+	cmdBufInfo.pNext = nullptr;
 
 	VkClearValue clearValues[2];
 	clearValues[0].color = in_clearColor;
@@ -92,7 +64,7 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 
 	VkRenderPassBeginInfo renderPassBeginInfo = {};
 	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassBeginInfo.pNext = NULL;
+	renderPassBeginInfo.pNext = nullptr;
 	renderPassBeginInfo.renderPass = in_renderPass;
 	renderPassBeginInfo.renderArea.offset.x = 0;
 	renderPassBeginInfo.renderArea.offset.y = 0;
@@ -160,84 +132,13 @@ void VulkanCommandBufferFactory::ConstructDrawCommandBuffer(std::vector<VkComman
 
 		vkCmdEndRenderPass(inout_buffers[i]);
 
-		// Add a present memory barrier to the end of the command buffer
-		// This will transform the frame buffer color attachment to a
-		// new layout for presenting it to the windowing system integration 
-		VkImageMemoryBarrier prePresentBarrier = {};
-		prePresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		prePresentBarrier.pNext = NULL;
-		prePresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		prePresentBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-		prePresentBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		prePresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		prePresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		prePresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		prePresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		prePresentBarrier.image = swapchainBuffers[i].m_image;
-
-		VkImageMemoryBarrier *pMemoryBarrier = &prePresentBarrier;
-		vkCmdPipelineBarrier(
-			inout_buffers[i],
-			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			VK_FLAGS_NONE,
-			0, nullptr,
-			0, nullptr,
-			1, &prePresentBarrier);
-
+		// Ending the render pass will add an implicit barrier transitioning the frame buffer color attachment to 
+		// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR for presenting it to the windowing system
 		err = vkEndCommandBuffer(inout_buffers[i]);
 		ERROR_IF(err, "End command buffer for drawing to frame buffer" << std::to_string(i) << ": " << vkTools::errorString(err));
 	}
 }
 
-void VulkanCommandBufferFactory::ConstructPostPresentCommandBuffer(std::vector<VkCommandBuffer>& inout_buffers, DrawCommandBufferDependencies& in_dependencyObjects)
-{
-	// Create commandbuffers for each frame buffer that resets the color attachment to its original state after presenting
-	// This is a reset of the last stage of the draw commandbuffer (see ConstructDrawCommandBuffer)
-	ERROR_IF(inout_buffers.size() != in_dependencyObjects.m_swapChain->GetBuffersCount(), "ConstructPostPresentCommandBuffer: Swap chain buffers count not equal to command buffers count.");
-
-	// Assert all dependencies used in method
-	assert(in_dependencyObjects.m_swapChain);
-
-	VkResult err;
-	std::vector<VulkanSwapChain::SwapChainBuffer>& swapchainBuffers = in_dependencyObjects.m_swapChain->GetBuffers();
-
-	VkImageMemoryBarrier postPresentBarrier = {};
-	postPresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	postPresentBarrier.pNext = NULL;
-	postPresentBarrier.srcAccessMask = 0;
-	postPresentBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	postPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	postPresentBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	postPresentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	postPresentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	postPresentBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-	for (int32_t i = 0; i < inout_buffers.size(); ++i)
-	{
-		postPresentBarrier.image = swapchainBuffers[i].m_image; // only thing differing between creation infos
-
-		// Use dedicated command buffer from example base class for submitting the post present barrier
-		VkCommandBufferBeginInfo cmdBufInfo = {};
-		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-		err = vkBeginCommandBuffer(inout_buffers[i], &cmdBufInfo);
-		ERROR_IF(err, "Begin command buffer for post present image layout" << std::to_string(i) << ": " << vkTools::errorString(err));
-
-		// Put post present barrier into command buffer
-		vkCmdPipelineBarrier(
-			inout_buffers[i],
-			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			VK_FLAGS_NONE,
-			0, nullptr,
-			0, nullptr,
-			1, &postPresentBarrier);
-
-		err = vkEndCommandBuffer(inout_buffers[i]);
-		ERROR_IF(err, "End command buffer for post present image layout" << std::to_string(i) << ": " << vkTools::errorString(err));
-	}
-}
 
 VkCommandBufferAllocateInfo VulkanCommandBufferFactory::MakeInfoStruct(VkCommandPool in_commandPool, VkCommandBufferLevel in_level, int in_bufferCount/* = 1*/)
 {
@@ -268,13 +169,16 @@ void VulkanCommandBufferFactory::AddImageLayoutChangeToCommandBuffer(VkCommandBu
 	imageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	// Source layouts (old)
+	// The source access mask specifies actions needed on
+	// the old layout before it can transition to the new one
 
 	// Undefined layout
 	// Only allowed as initial layout!
 	// Make sure any writes to the image have been finished
 	if (in_oldImageLayout == VK_IMAGE_LAYOUT_UNDEFINED)
 	{
-		imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+		// layout is undefined or doesn't matter.
+		imageMemoryBarrier.srcAccessMask = 0;
 	}
 
 	// Old layout is color attachment
@@ -316,7 +220,7 @@ void VulkanCommandBufferFactory::AddImageLayoutChangeToCommandBuffer(VkCommandBu
 	}
 
 	// New layout is color attachment
-	// Make sure any writes to the color buffer hav been finished
+	// Make sure any writes to the color buffer have been finished
 	if (in_newImageLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
 	{
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -334,7 +238,10 @@ void VulkanCommandBufferFactory::AddImageLayoutChangeToCommandBuffer(VkCommandBu
 	// Make sure any writes to the image have been finished
 	if (in_newImageLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 	{
-		imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+		if (imageMemoryBarrier.srcAccessMask == 0)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+		}
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 	}
 

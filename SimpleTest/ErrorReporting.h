@@ -3,6 +3,7 @@
 #include <exception>
 #include <string>
 #include <assert.h>
+#include <iostream>
 #include <sstream>
 
 struct ProgramError : std::exception
@@ -25,7 +26,8 @@ if (x) \
 { \
 	std::ostringstream _o_ss_err; \
 	_o_ss_err << "ERROR: " << __FILE__ << " ln: " << __LINE__ << " " << msg << "\n"; \
-	OutputDebugStringA(_o_ss_err.str().c_str()); \
+	OutputDebugString(_o_ss_err.str().c_str()); \
+	std::cout << _o_ss_err.str(); \
 	assert(false); \
 } \
 } while (0)
@@ -38,7 +40,8 @@ if (x) \
 { \
 	std::ostringstream _o_ss_err; \
 	_o_ss_err << "ERROR: " << msg << "\n"; \
-	OutputDebugStringA(_o_ss_err.str().c_str()); \
+	OutputDebugString(_o_ss_err.str().c_str()); \
+	std::cout << _o_ss_err.str(); \
 	throw ProgramError(_o_ss_err); \
 } \
 } while (0)

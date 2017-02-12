@@ -31,7 +31,7 @@ void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t 
 	// Creation information for the depth stencil image
 	VkImageCreateInfo imageCreationInfo = {};
 	imageCreationInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageCreationInfo.pNext = NULL;
+	imageCreationInfo.pNext = nullptr;
 	imageCreationInfo.imageType = VK_IMAGE_TYPE_2D;
 	imageCreationInfo.format = in_format;
 	imageCreationInfo.extent = { in_width, in_height, 1 };
@@ -44,13 +44,13 @@ void VulkanDepthStencilFactory::CreateDepthStencil(VkFormat in_format, uint32_t 
 	
 	VkMemoryAllocateInfo memoryAllocInfo = {};
 	memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memoryAllocInfo.pNext = NULL;
+	memoryAllocInfo.pNext = nullptr;
 	memoryAllocInfo.allocationSize = 0;
 	memoryAllocInfo.memoryTypeIndex = 0;
 
 	VkImageViewCreateInfo depthStencilViewCreationInfo = {};
 	depthStencilViewCreationInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	depthStencilViewCreationInfo.pNext = NULL;
+	depthStencilViewCreationInfo.pNext = nullptr;
 	depthStencilViewCreationInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	depthStencilViewCreationInfo.format = in_format;
 	depthStencilViewCreationInfo.flags = 0;

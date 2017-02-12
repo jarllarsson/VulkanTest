@@ -84,7 +84,7 @@ bool Wnd::GetPlatformWindowInfo(HWND& out_hWnd, HINSTANCE& out_hInstance)
 	if (SDL_GetWindowWMInfo(win, &sdlInfo))
 	{
 		out_hWnd = sdlInfo.info.win.window;
-		out_hInstance = GetModuleHandle(NULL);
+		out_hInstance = GetModuleHandle(nullptr);
 
 		return true;
 	}

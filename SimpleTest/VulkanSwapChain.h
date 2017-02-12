@@ -35,6 +35,7 @@ public:
 	VkResult Present(VkQueue in_queue, uint32_t in_currentBufferIdx, VkSemaphore in_waitSemaphore = VK_NULL_HANDLE);
 
 	int      GetBuffersCount() const;
+	VkFormat GetColorFormat() const { return m_colorFormat; }
 
 private:
 	void CreateBuffers();

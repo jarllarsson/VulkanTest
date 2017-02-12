@@ -7,11 +7,8 @@
 *
 * \brief
 *
-* An auto deleter class for handling Vulkan objects.
+* An auto deleter class for handling Vulkan objects (or other).
 * Based on auto-deleter as seen on https://vulkan-tutorial.com
-*
-* TODO: Reference counting
-*
 *
 * \author Jarl
 * \date 2016-2017
@@ -33,14 +30,14 @@ public:
 	VkObj(std::function<void(T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
 	: m_obj(in_init)
 	{
-		Init(in_deleterFunc, in_init);
+		Init(in_deleterFunc);
 	}
 
 	VkObj(const VkObj<VkInstance>& in_instance,
 		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
 	: m_obj(in_init)
 	{
-		Init(in_instance, in_deleterFunc, in_init);
+		Init(in_instance, in_deleterFunc);
 	}
 
 
@@ -48,7 +45,7 @@ public:
 		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
 	: m_obj(in_init)
 	{
-		Init(in_device, in_deleterFunc, in_init);
+		Init(in_device, in_deleterFunc);
 	}
 
 #ifdef _DEBUG
@@ -57,7 +54,7 @@ public:
 		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc, std::string& in_dbgName, T in_init = VK_NULL_HANDLE)
 		: m_obj(in_init)
 	{
-		Init(in_instance, in_deleterFunc, in_init);
+		Init(in_instance, in_deleterFunc);
 		m_dbgName = in_dbgName;
 	}
 
@@ -65,7 +62,7 @@ public:
 		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, std::string& in_dbgName, T in_init = VK_NULL_HANDLE)
 		: m_obj(in_init)
 	{
-		Init(in_device, in_deleterFunc, in_init);
+		Init(in_device, in_deleterFunc);
 		m_dbgName = in_dbgName;
 	}
 
@@ -142,7 +139,7 @@ public:
 
 
 private:
-	void Init(std::function<void(T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+	void Init(std::function<void(T, VkAllocationCallbacks*)> in_deleterFunc)
 	{
 		// Assign a lambda to the deleter functor
 		// that calls the in_deleterFunc functor (capture by value in capture clause [] )
@@ -154,7 +151,7 @@ private:
 	}
 
 	void Init(const VkObj<VkInstance>& in_instance,
-		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+		std::function<void(VkInstance, T, VkAllocationCallbacks*)> in_deleterFunc)
 	{
 		// Assign lambda, here also bind in_instance as ref
 		m_deleter =
@@ -166,7 +163,7 @@ private:
 
 
 	void Init(const VkObj<VkDevice>& in_device,
-		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc, T in_init = VK_NULL_HANDLE)
+		std::function<void(VkDevice, T, VkAllocationCallbacks*)> in_deleterFunc)
 	{
 		// Assign lambda, here also bind in_device as ref
 		m_deleter =

@@ -14,7 +14,7 @@ namespace VulkanShaderLoader
 		shaderStage.stage = in_stage;
 		shaderStage.module = vkTools::loadShader(in_fileName.c_str(), in_device, in_stage);
 		shaderStage.pName = in_methodName;
-		ERROR_IF(shaderStage.module == NULL, "Load SPIR-V shader: " << in_fileName);
+		ERROR_IF(shaderStage.module == nullptr, "Load SPIR-V shader: " << in_fileName);
 		return shaderStage;
 	}
 
@@ -25,7 +25,7 @@ namespace VulkanShaderLoader
 		shaderStage.stage = in_stage;
 		shaderStage.module = vkTools::loadShaderGLSL(in_fileName.c_str(), in_device, in_stage);
 		shaderStage.pName = in_methodName;
-		ERROR_IF(shaderStage.module == NULL, "Load SPIR-V Load: " << in_fileName);
+		ERROR_IF(shaderStage.module == nullptr, "Load SPIR-V Load: " << in_fileName);
 		return shaderStage;
 	}
 };
