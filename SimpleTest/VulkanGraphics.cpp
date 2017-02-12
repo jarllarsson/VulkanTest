@@ -92,8 +92,6 @@ void VulkanGraphics::Render()
 	if (!m_device)
 		return;
 	Draw();
-	// Flush device to make sure all resources can be freed 
-	vkDeviceWaitIdle(m_device);
 }
 
 // Main initialization of Vulkan stuff
@@ -314,6 +312,9 @@ void VulkanGraphics::Destroy()
 	// General
 
 	// TODO: Replace remaining with VkObjs
+
+	// Flush device to make sure all resources can be freed 
+	vkDeviceWaitIdle(m_device);
 
 	OutputDebugString("Vulkan: Removing swap chain\n");
 	m_swapChain.reset();
