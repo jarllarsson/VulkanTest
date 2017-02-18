@@ -44,15 +44,20 @@ public:
 	void Render();
 private:
 	// General
+	// Top level initialization steps
 	void     Init(HWND in_hWnd, HINSTANCE in_hInstance);
-	VkResult CreateInstance(VkInstance* out_instance);
+	void     CreateInstance();
+	void     SetupDebugLayer();
+	void     FindPhysicalDevice();
+	void     CreatePresentSurface(void* in_platformHandle, void* in_platformWindow);
+	void     CreateLogicalDevice();
 
+	// Destruction
 	void     Destroy();
 	void     DestroyCommandBuffers();
 
+	// Initialization helpers
 	uint32_t GetGraphicsQueueInternalIndex() const;
-	void     CreatePresentSurface(void* in_platformHandle, void* in_platformWindow, VkSurfaceKHR* out_surface);
-	VkResult CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device);
 	bool     GetDepthFormat(VkFormat* out_format) const;
 	VkResult CreateCommandPool(VkCommandPool* out_commandPool);
 	void     AllocateRenderCommandBuffers();
@@ -88,7 +93,7 @@ private:
 	VkPhysicalDevice m_physicalDevice; // Destroyed when instance is destroyed
 
 	// Vulkan memory handler
-	std::shared_ptr<VulkanMemoryHelper> m_memory;
+	std::shared_ptr<VulkanMemoryHelper> m_memoryHelper;
 	// Logical device object (the app's view of the gpu)
 	VkObj<VkDevice> m_device;
 

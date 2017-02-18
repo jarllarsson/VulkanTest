@@ -103,112 +103,109 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// ===================================
 	VkResult err = VK_SUCCESS;
 
-	// Create the Vulkan instance
-	err = CreateInstance(m_vulkanInstance.Replace());
-	ERROR_IF(err, "Create Vulkan instance: " << vkTools::errorString(err));
+	// INSTANCE : Create the Vulkan instance
+	// ---------------------------------------------------------------------------
+	CreateInstance();
+	// ---------------------------------------------------------------------------
 
-	// Set up function pointers that requires Vulkan instance
-	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceSupportKHR);
-
+	// DEBUG LAYER : Setup debug layer
+	// ---------------------------------------------------------------------------
 	// If requested, we enable the default validation layers for debugging
-	if (ENABLE_VALIDATION)
-	{
-		// Report flags for defining what levels to enable for the debug layer
-		VkDebugReportFlagsEXT debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
-		vkDebug::setupDebugging(m_vulkanInstance, debugReportFlags, VK_NULL_HANDLE);
-	}
+	SetupDebugLayer();
+	// ---------------------------------------------------------------------------
 	
-	// Create the physical device object
+	// PHYSICAL DEVICE : Create the physical device object
+	// ---------------------------------------------------------------------------
 	// Just get the first physical device for now (otherwise, read into a vector instead of a single reference)
-	uint32_t gpuCount = 0;
-	// Get number of available physical devices
-	VK_CHECK_RESULT(vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, nullptr));
-	assert(gpuCount > 0);
-	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
-	
-	if (err != VK_SUCCESS)
-	{
-		if (err == VK_INCOMPLETE)
-		{
-			// Incomplete can be success if not 0 gpus found
-			ERROR_IF(gpuCount <= 0 || !m_physicalDevice, "No GPUs found when enumerating GPUs: " << vkTools::errorString(err));
-		}
-		else if (err != VK_SUCCESS)
-		{
-			ERROR_ALWAYS("Enumerating GPUs: " << vkTools::errorString(err));
-		}
-	}
-	
-	// Initialize memory helper class
-	m_memory = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
+	FindPhysicalDevice();
+	// ---------------------------------------------------------------------------
 
-	// Create presentation surface
-	CreatePresentSurface(reinterpret_cast<void*>(in_hInstance), reinterpret_cast<void*>(in_hWnd), m_surface.Replace());
+	// SURFACE : Create presentation surface
+	// ---------------------------------------------------------------------------
+	CreatePresentSurface(reinterpret_cast<void*>(in_hInstance), reinterpret_cast<void*>(in_hWnd));
+	// ---------------------------------------------------------------------------
 
-	// Get graphics queue index on the current physical device
-	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
+	// LOGICAL DEVICE : Create the logical device and get the device queue for graphics
+	// ---------------------------------------------------------------------------
+	CreateLogicalDevice();
+	// ---------------------------------------------------------------------------
 
 
-	// Create the logical device
-	err = CreateLogicalDevice(m_graphicsQueueIdx, m_device.Replace());
-	ERROR_IF(err, "Create logical device: " << vkTools::errorString(err));
-
-	// Init factories
+	// FACTORIES : Init factories
+	// ---------------------------------------------------------------------------
+	m_memoryHelper = std::make_shared<VulkanMemoryHelper>(m_physicalDevice);
 	m_commandBufferFactory = std::make_unique<VulkanCommandBufferFactory>(m_device);
 	m_renderPassFactory = std::make_unique<VulkanRenderPassFactory>(m_device);
-	m_depthStencilFactory = std::make_unique<VulkanDepthStencilFactory>(m_device, m_memory);
-	m_bufferFactory = std::make_unique<VulkanBufferFactory>(m_device, m_memory);
+	m_depthStencilFactory = std::make_unique<VulkanDepthStencilFactory>(m_device, m_memoryHelper);
+	m_bufferFactory = std::make_unique<VulkanBufferFactory>(m_device, m_memoryHelper);
+	// ---------------------------------------------------------------------------
 
 
 	// ================================================
 	// 2. Prepare render usage of Vulkan
 	// ================================================
 
-	// Get the graphics queue
-	vkGetDeviceQueue(m_device, m_graphicsQueueIdx, 0, &m_queue);
+	// TODO: Move GetDepthFormat into swapchain creation
+	// Generalize creation of image and imageviews, create an "ImageViewFactory"
+	// Make depth stencil creation use image+imageview creation helper + its own memory
+	// create ImageViewFactory(device) it then has creation for image and imageviews and also a special depth stencil creation
 
-	// Get and set depth format
+
+	// DEPTH FORMAT : Get and set depth format
+	// ---------------------------------------------------------------------------
 	if (!GetDepthFormat(&m_depthFormat)) ERROR_ALWAYS("Set up the depth format.");
+	// ---------------------------------------------------------------------------
 
-	// Create a swap chain representation
+	// SWAP CHAIN : Create a swap chain representation
+	// ---------------------------------------------------------------------------
 	m_swapChain = std::make_shared<VulkanSwapChain>(m_vulkanInstance, m_physicalDevice, m_device,
 		m_surface, &m_width, &m_height);
+	// ---------------------------------------------------------------------------
 
-	if (ENABLE_VALIDATION)
-	{
-		// TODO: own callback, see how the messagecallback is setup inside this method:
-		vkDebug::setupDebugging(m_vulkanInstance, VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT, nullptr);
-	}
 
-	// Create command pool
+	// COMMAND POOL : Create command pool
+	// ---------------------------------------------------------------------------
 	err = CreateCommandPool(m_commandPool.Replace());
 	ERROR_IF(err, "Create command pool: " << vkTools::errorString(err));
+	// ---------------------------------------------------------------------------
 
-	// Create command buffers for each frame image buffer in the swap chain, for rendering
+	// COMMAND BUFFERS : Create command buffers for each frame image buffer in the swap chain, for rendering
+	// ---------------------------------------------------------------------------
 	AllocateRenderCommandBuffers();
+	// ---------------------------------------------------------------------------
 
-	// Setup depth stencil
+	// DEPTH STENCIL IMAGE VIEWS : Setup depth stencil
+	// ---------------------------------------------------------------------------
 	m_depthStencilFactory->CreateDepthStencil(m_depthFormat, m_width, m_height, m_depthStencil);
+	// ---------------------------------------------------------------------------
 
-	// Create the render pass
+	// RENDERPARSS : Create the render pass
+	// ---------------------------------------------------------------------------
 	err = m_renderPassFactory->CreateStandardRenderPass(m_swapChain->GetColorFormat(), m_depthFormat, *m_renderPass.Replace());
 	ERROR_IF(err, "Create render pass: " << vkTools::errorString(err));
+	// ---------------------------------------------------------------------------
 
-	// Create a pipeline cache
+	// PIPELINE : Create a pipeline cache
+	// ---------------------------------------------------------------------------
 	err = CreatePipelineCache();
 	ERROR_IF(err, "Create pipeline cache: " << vkTools::errorString(err));
+	// ---------------------------------------------------------------------------
 
-	// Setup frame buffer
+	// FRAME BUFFER : Setup frame buffer
+	// ---------------------------------------------------------------------------
 	CreateFrameBuffers();
+	// ---------------------------------------------------------------------------
 
-	// Note: Other command buffers if needed should then be allocated >here<
+
+	// SYNCHRONIZATION PRIMITIVES : Create semaphores and fences
+	// ---------------------------------------------------------------------------
+	CreateSemaphoresAndFences();
+	// ---------------------------------------------------------------------------
+
 
 	// ================================================
 	// 3. Prepare application specific usage of Vulkan
 	// ================================================
-
-	// Create semaphores and fences
-	CreateSemaphoresAndFences();
 
 	// Create triangle mesh
 	m_triangleMesh = std::make_shared<VulkanMesh>(m_device);
@@ -258,7 +255,7 @@ void VulkanGraphics::Init(HWND in_hWnd, HINSTANCE in_hInstance)
 	// When all the above is implemented we can create the render method that will be called each frame
 }
 
-VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
+void VulkanGraphics::CreateInstance()
 {
 	std::string name = "vulkanTestApp";
 	VkApplicationInfo appInfo = {};
@@ -298,13 +295,74 @@ VkResult VulkanGraphics::CreateInstance(VkInstance* out_instance)
 		instanceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
 
-	VkResult err = vkCreateInstance(&instanceCreateInfo, nullptr, out_instance);
+	VkResult err = vkCreateInstance(&instanceCreateInfo, nullptr, m_vulkanInstance.Replace());
+	ERROR_IF(err, "Create Vulkan instance: " << vkTools::errorString(err));
+	// Set up function pointers that requires Vulkan instance
+	GET_INSTANCE_PROC_ADDR(m_vulkanInstance, GetPhysicalDeviceSurfaceSupportKHR);
+}
+
+void VulkanGraphics::SetupDebugLayer()
+{
+	if (ENABLE_VALIDATION)
+	{
+		// Report flags for defining what levels to enable for the debug layer
+		VkDebugReportFlagsEXT debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
+		vkDebug::setupDebugging(m_vulkanInstance, debugReportFlags, VK_NULL_HANDLE);
+	}
+}
+
+void VulkanGraphics::FindPhysicalDevice()
+{
+	VkResult err = VK_SUCCESS;
+	uint32_t gpuCount = 0;
+	// Get number of available physical devices
+	VK_CHECK_RESULT(vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, nullptr));
+	assert(gpuCount > 0);
+	err = vkEnumeratePhysicalDevices(m_vulkanInstance, &gpuCount, &m_physicalDevice);
+	if (err != VK_SUCCESS)
+	{
+		if (err == VK_INCOMPLETE)
+		{
+			// Incomplete can be success if not 0 gpus found
+			ERROR_IF(gpuCount <= 0 || !m_physicalDevice, "No GPUs found when enumerating GPUs: " << vkTools::errorString(err));
+		}
+		else if (err != VK_SUCCESS)
+		{
+			ERROR_ALWAYS("Enumerating GPUs: " << vkTools::errorString(err));
+		}
+	}
+}
+
+void VulkanGraphics::CreatePresentSurface(void* in_platformHandle, void* in_platformWindow)
+{
+	assert(in_platformHandle);
+	assert(in_platformWindow);
+	VkResult err;
+	// Create surface
+#ifdef _WIN32
+	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(in_platformHandle);
+	surfaceCreateInfo.hwnd = reinterpret_cast<HWND>(in_platformWindow);
+	err = vkCreateWin32SurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, m_surface.Replace());
+#else
+#ifdef __ANDROID__
+	VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.window = window;
+	err = vkCreateAndroidSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
+#else
+	VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.connection = connection;
+	surfaceCreateInfo.window = window;
+	err = vkCreateXcbSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
+#endif
+#endif
 	if (err)
 	{
-		return err;
+		LOG(vkTools::errorString(err));
 	}
-
-	return err;
 }
 
 void VulkanGraphics::Destroy()
@@ -384,48 +442,18 @@ uint32_t VulkanGraphics::GetGraphicsQueueInternalIndex() const
 	return graphicsQueueIdx;
 }
 
-void VulkanGraphics::CreatePresentSurface(void* in_platformHandle, void* in_platformWindow, VkSurfaceKHR* out_surface)
-{
-	assert(in_platformHandle);
-	assert(in_platformWindow);
-	VkResult err;
-	// Create surface
-#ifdef _WIN32
-	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(in_platformHandle);
-	surfaceCreateInfo.hwnd = reinterpret_cast<HWND>(in_platformWindow);
-	err = vkCreateWin32SurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
-#else
-#ifdef __ANDROID__
-	VkAndroidSurfaceCreateInfoKHR surfaceCreateInfo = {};
-	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-	surfaceCreateInfo.window = window;
-	err = vkCreateAndroidSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
-#else
-	VkXcbSurfaceCreateInfoKHR surfaceCreateInfo = {};
-	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-	surfaceCreateInfo.connection = connection;
-	surfaceCreateInfo.window = window;
-	err = vkCreateXcbSurfaceKHR(m_vulkanInstance, &surfaceCreateInfo, nullptr, out_surface);
-#endif
-#endif
-	if (err)
-	{
-		LOG(vkTools::errorString(err));
-	}
-}
 
-VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDevice* out_device)
+void VulkanGraphics::CreateLogicalDevice()
 {
 	// Vulkan device
 
 	// First, set up queue creation info
+	m_graphicsQueueIdx = GetGraphicsQueueInternalIndex();
 	std::array<float, 1> queuePriorities = { 0.0f };
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
 	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	queueCreateInfo.pNext = nullptr;
-	queueCreateInfo.queueFamilyIndex = in_graphicsQueueIdx;
+	queueCreateInfo.queueFamilyIndex = m_graphicsQueueIdx;
 	queueCreateInfo.queueCount = 1; // one queue for now
 	queueCreateInfo.pQueuePriorities = queuePriorities.data();
 
@@ -451,12 +479,16 @@ VkResult VulkanGraphics::CreateLogicalDevice(uint32_t in_graphicsQueueIdx, VkDev
 		deviceCreateInfo.ppEnabledLayerNames = vkDebug::validationLayerNames;
 	}
 
-		/*
-		In Vulkan you can set several queues into the VkDeviceCreateInfo. With correct queuecount.
-		You can control the priority of each queue with an array of normalized floats, where 1 is highest priority.
-		*/
+	/*
+	In Vulkan you can set several queues into the VkDeviceCreateInfo. With correct queuecount.
+	You can control the priority of each queue with an array of normalized floats, where 1 is highest priority.
+	*/
+	VkResult err = VK_SUCCESS;
+	err = vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, m_device.Replace()); // no allocation callbacks for now
+	ERROR_IF(err, "Create logical device: " << vkTools::errorString(err));
 
-	return vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, out_device); // no allocation callbacks for now
+	// Get the graphics queue for the device
+	vkGetDeviceQueue(m_device, m_graphicsQueueIdx, 0, &m_queue);
 }
 
 bool VulkanGraphics::GetDepthFormat(VkFormat* out_format) const
